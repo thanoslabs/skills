@@ -12,6 +12,7 @@ structure and authoring conventions; start new skills from
 | [pr-commit-conventions](skills/pr-commit-conventions/SKILL.md) | Conventions for branches, commit messages, and pull requests |
 | [rubric-justification](skills/rubric-justification/SKILL.md) | Evidence-grounded justifications for a specified rubric level |
 | [rubric-justification-review](skills/rubric-justification-review/SKILL.md) | Skeptical review and actionable feedback on an existing rubric justification |
+| [software-factory](skills/software-factory/SKILL.md) | Takes a work item from issue or description to a merge-ready PR, with approval checkpoints |
 
 ## Using a Skill
 

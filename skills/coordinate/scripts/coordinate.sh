@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
-# software-factory helper: locates per-item state and reports a work item's
+# coordinate helper: locates per-item state and reports a work item's
 # stage as observed from git and GitHub.
 #
 # Requires: bash, git, jq. Optional: gh (authenticated). Without gh, remote
 # facts are reported as null and the stage falls back to state.json.
 #
 # Usage:
-#   factory.sh dir <id>      print the item's state directory (not created)
-#   factory.sh status <id>   print observed facts and derived stage as JSON
-#   factory.sh list          list items for the current repository
-#   factory.sh release-label "<pr title>"
+#   coordinate.sh dir <id>      print the item's state directory (not created)
+#   coordinate.sh status <id>   print observed facts and derived stage as JSON
+#   coordinate.sh list          list items for the current repository
+#   coordinate.sh release-label "<pr title>"
 #                            print the release label for a Conventional Commits title
-#   factory.sh missing-labels
+#   coordinate.sh missing-labels
 #                            list the expected labels the repo doesn't have (read-only)
 #
 # Run from inside the target repository (any worktree).
 set -euo pipefail
 
-die() { echo "factory.sh: $*" >&2; exit 1; }
+die() { echo "coordinate.sh: $*" >&2; exit 1; }
 
 state_root() {
-  echo "${SOFTWARE_FACTORY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/software-factory}"
+  echo "${COORDINATE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/coordinate}"
 }
 
 # owner-repo from the origin remote; falls back to the top-level dir name.
@@ -168,7 +168,7 @@ case "${1:-}" in
   dir)    check_id "${2:-}"; item_dir "$2" ;;
   status) check_id "${2:-}"; cmd_status "$2" ;;
   list)   cmd_list ;;
-  release-label) [[ -n "${2:-}" ]] || die "usage: factory.sh release-label \"<title>\""; cmd_release_label "$2" ;;
+  release-label) [[ -n "${2:-}" ]] || die "usage: coordinate.sh release-label \"<title>\""; cmd_release_label "$2" ;;
   missing-labels) cmd_missing_labels ;;
   *)      sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

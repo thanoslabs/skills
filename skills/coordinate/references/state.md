@@ -3,7 +3,7 @@
 ## Location
 
 ```
-${SOFTWARE_FACTORY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/software-factory}/<owner>-<repo>/<id>/
+${COORDINATE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/coordinate}/<owner>-<repo>/<id>/
 ```
 
 `<owner>-<repo>` comes from the `origin` remote. The directory is outside
@@ -33,7 +33,7 @@ reboots. Close out deletes it.
   "publish": true,
   "base": "main",
   "branch": "fix/123-token-refresh-race",
-  "worktree": "/Users/me/.local/state/software-factory/acme-api/issue-123/worktree",
+  "worktree": "/Users/me/.local/state/coordinate/acme-api/issue-123/worktree",
   "pr": null,
   "approvals": { "plan": "2026-10-22T14:03:00Z", "build": null, "review": null },
   "attempts": { "verify": 1, "ci": 0, "review_rounds": 0 },
@@ -57,7 +57,7 @@ Reset `attempts.ci` to 0 whenever CI goes green.
 
 ## Stage detection
 
-`scripts/factory.sh status <id>` combines observed facts with
+`scripts/coordinate.sh status <id>` combines observed facts with
 `state.json` and prints `derived_stage`. Precedence, first match wins:
 
 1. **PR merged / closed** → `done-merged` / `done-closed`

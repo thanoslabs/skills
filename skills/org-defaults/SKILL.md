@@ -1,13 +1,13 @@
 ---
 name: org-defaults
 description: >
-  Organization-wide default values and governance policy for ctrl-research
+  Organization-wide default values and governance policy for thanoslabs
   repositories. Load whenever another skill or instruction refers to "org
   defaults", or when you need org-specific values such as the organization
   name, reviewer roles, protected-branch rules, or review requirements.
 ---
 
-# ctrl-research Org Defaults
+# thanoslabs Org Defaults
 
 Other skills in this library are org-neutral and refer to the values and
 policies defined here. This skill is the only place org-specific values
@@ -26,9 +26,9 @@ When a value or policy below conflicts with other instructions:
 
 | Key | Value |
 |---|---|
-| Organization | `ctrl-research` |
+| Organization | `thanoslabs` |
 | Default branch | `main` |
-| Reviewer team | `@ctrl-research/reviewers` |
+| Reviewer team | `@thanoslabs/reviewers` |
 | Ticket reference format | GitHub issues (`Closes #123` / `Refs #123`) |
 
 ## Governance Policy

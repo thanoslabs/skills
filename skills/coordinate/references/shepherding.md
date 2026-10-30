@@ -84,6 +84,6 @@ or conflicts, remove the label. Never change the release label.
 
 ## End of pass
 
-Re-run `scripts/factory.sh status <id>`. Report: CI state, threads
+Re-run `scripts/coordinate.sh status <id>`. Report: CI state, threads
 addressed or still open, what is being waited on. If `ready-to-merge`,
 go to Handoff.

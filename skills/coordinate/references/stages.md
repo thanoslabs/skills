@@ -2,7 +2,7 @@
 
 Each stage lists what to do, the commands involved, and the exit check
 that must hold before moving on. `$DIR` is the item's state directory
-(`scripts/factory.sh dir <id>`); `$WT` is `$DIR/worktree`.
+(`scripts/coordinate.sh dir <id>`); `$WT` is `$DIR/worktree`.
 
 Write `state.json` after every stage transition, checkpoint, and
 escalation — never only at the end of a turn.
@@ -56,7 +56,7 @@ with at least one testable acceptance criterion.
 
 After approval, if publishing and the source is an issue: assign the
 current user (`gh issue edit <n> --add-assignee @me`), add the
-`in-progress` label unless `scripts/factory.sh missing-labels` lists it,
+`in-progress` label unless `scripts/coordinate.sh missing-labels` lists it,
 and comment the plan on the issue.
 
 ## 3. Build
@@ -100,9 +100,9 @@ the commit list, verification results, and any plan deviations.
 4. Write `$DIR/pr-body.md` in the `pr-commit-conventions` PR format.
    Include `Closes #<n>` when the source is an issue. The Testing section
    lists exactly what was run and its result.
-5. Get the release label: `scripts/factory.sh release-label "<title>"`.
+5. Get the release label: `scripts/coordinate.sh release-label "<title>"`.
    If the title isn't Conventional Commits, fix the title. Check it
-   against `scripts/factory.sh missing-labels`; if the repo lacks it, add
+   against `scripts/coordinate.sh missing-labels`; if the repo lacks it, add
    a warning to the PR body's Notes section.
 6. Run the `pr-commit-conventions` "Before Requesting Review" checklist.
 
@@ -132,7 +132,7 @@ request others only if `org-defaults` or the host repo says to.
 ## 6. Shepherd
 
 One pass per invocation — see [shepherding.md](shepherding.md). After
-the pass, re-run `factory.sh status`; if still `shepherd`, report what
+the pass, re-run `coordinate.sh status`; if still `shepherd`, report what
 is pending (CI running, awaiting review) and stop. The user can re-run
 later or schedule repeats with their agent's loop or scheduling feature.
 

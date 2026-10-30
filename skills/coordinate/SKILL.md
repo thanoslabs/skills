@@ -1,17 +1,17 @@
 ---
-name: software-factory
+name: coordinate
 description: >
   Take a unit of software work from queued to merge-ready: define it, plan
   it, build it, review it, open the PR, and shepherd CI and review feedback
   until it is approved — then hand off to a human to merge. Pauses for
   approval after plan, build, and review unless run with --auto; with
   --local-only it never pushes or writes to GitHub. Use when the user says
-  "work on issue #123", "take this ticket to a PR", "run the factory on…",
-  "pick this up end to end", "/software-factory", or asks to resume,
-  approve, or check the status of factory work.
+  "work on issue #123", "take this ticket to a PR", "coordinate this…",
+  "pick this up end to end", "/coordinate", or asks to resume,
+  approve, or check the status of coordinated work.
 ---
 
-# Software Factory
+# Coordinate
 
 Drive one work item through a fixed pipeline. State is resumable: any
 session can re-run the skill and continue from where the item stands.
@@ -22,12 +22,12 @@ human decision in every mode.
 ## Invocation
 
 ```
-/software-factory <issue-ref | description> [--auto] [--local-only]   start
-/software-factory [<id>] [--auto | --gated] [--local-only | --publish] resume
-/software-factory approve [<id>] [feedback]                              pass a checkpoint
-/software-factory status [<id>]                                          report only
-/software-factory list                                                   all items in this repo
-/software-factory abandon <id>                                           stop and clean up
+/coordinate <issue-ref | description> [--auto] [--local-only]      start
+/coordinate [<id>] [--auto | --gated] [--local-only | --publish]   resume
+/coordinate approve [<id>] [feedback]                              pass a checkpoint
+/coordinate status [<id>]                                          report only
+/coordinate list                                                   all items in this repo
+/coordinate abandon <id>                                           stop and clean up
 ```
 
 | Flag | Effect | Default |
@@ -56,16 +56,16 @@ human decision in every mode.
 Per-item state lives **outside the repository** and is never committed:
 
 ```
-${SOFTWARE_FACTORY_STATE_DIR:-${XDG_STATE_HOME:-~/.local/state}/software-factory}/<owner>-<repo>/<id>/
+${COORDINATE_STATE_DIR:-${XDG_STATE_HOME:-~/.local/state}/coordinate}/<owner>-<repo>/<id>/
   state.json   spec.md   plan.md   review.md   pr-body.md   worktree/
 ```
 
-Get the path with `scripts/factory.sh dir <id>`. The `<id>` is
+Get the path with `scripts/coordinate.sh dir <id>`. The `<id>` is
 `issue-<n>` for a GitHub issue, otherwise a short kebab-case slug of the
 work (e.g. `retry-backoff`).
 
 **Observed facts beat recorded state.** At the start of every invocation,
-run `scripts/factory.sh status <id>` and act on `derived_stage`, not on
+run `scripts/coordinate.sh status <id>` and act on `derived_stage`, not on
 `state.json` alone. If someone pushed, opened, or closed a PR by hand,
 the derived stage reflects it. Update `state.json` to match before
 continuing. Full schema and detection rules:
@@ -90,7 +90,7 @@ handling: [references/shepherding.md](references/shepherding.md).
 
 ### Dispatch
 
-Map `derived_stage` from `factory.sh status` to an action:
+Map `derived_stage` from `coordinate.sh status` to an action:
 
 | `derived_stage` | Action |
 |---|---|
@@ -111,7 +111,7 @@ In gated mode, at the end of Plan, Build, and Review:
 1. Set `awaiting` to `plan-approval`, `build-approval`, or `review-approval`.
 2. Present the artifact (plan, diff summary + verification results, or
    review findings + PR body) with the worktree path, and say how to
-   continue: `/software-factory approve <id>` or reply with feedback.
+   continue: `/coordinate approve <id>` or reply with feedback.
 3. **Stop.** Do not proceed in the same turn.
 
 On approval, record the timestamp in `approvals.<stage>`, clear `awaiting`,
@@ -141,7 +141,7 @@ and remove the label when the user resumes with a decision.
 
 Labels are used **only if they already exist** in the repo; never create
 them. Repos are expected to provision them (e.g. from the org's repository
-template). Run `scripts/factory.sh missing-labels` once per invocation
+template). Run `scripts/coordinate.sh missing-labels` once per invocation
 before the first label write and skip any label it lists.
 
 | Label | Applied to | When |
@@ -152,7 +152,7 @@ before the first label write and skip any label it lists.
 | `major` `minor` `fix` `patch` | PR | Publish — exactly one release label |
 | `dont-merge` | PR | **Never** added or removed by the skill; a human hold that pauses the pipeline |
 
-Pick the release label with `scripts/factory.sh release-label "<pr title>"`:
+Pick the release label with `scripts/coordinate.sh release-label "<pr title>"`:
 breaking change (`!`) → `major`, `feat` → `minor`, `fix` → `fix`, any
 other type → `patch`. Apply it once at Publish; if a human changes it
 later, leave their choice alone. With `--local-only`, include it in the
@@ -186,7 +186,7 @@ review checkpoint, in the PR body's Notes section, and in the handoff.
 End every invocation with a short status block:
 
 ```
-software-factory · retry-backoff · build (awaiting build-approval) · gated · publish
-worktree: ~/.local/state/software-factory/acme-api/retry-backoff/worktree
-next: /software-factory approve retry-backoff   (or reply with feedback)
+coordinate · retry-backoff · build (awaiting build-approval) · gated · publish
+worktree: ~/.local/state/coordinate/acme-api/retry-backoff/worktree
+next: /coordinate approve retry-backoff   (or reply with feedback)
 ```

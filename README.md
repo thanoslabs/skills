@@ -13,6 +13,7 @@ structure and authoring conventions; start new skills from
 | [rubric-justification](skills/rubric-justification/SKILL.md) | Evidence-grounded justifications for a specified rubric level |
 | [rubric-justification-review](skills/rubric-justification-review/SKILL.md) | Skeptical review and actionable feedback on an existing rubric justification |
 | [coordinate](skills/coordinate/SKILL.md) | Coordinator agent that clarifies work, ties it to a Jira ticket, dispatches plan/build/validate subagents, and opens draft PRs with a Slack summary |
+| [pr-shepherd](skills/pr-shepherd/SKILL.md) | One pass over an open PR: resolve conflicts, fix CI, address review comments |
 | [change-comms](skills/change-comms/SKILL.md) | Copy-pastable chat announcements of PRs and shipped work |
 
 ## Using a Skill

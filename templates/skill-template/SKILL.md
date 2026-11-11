@@ -26,5 +26,6 @@ Optional directories alongside this file:
   references/  — detailed docs loaded on demand
   scripts/     — self-contained executable helpers
   assets/      — templates or files used in skill output
+  agents/      — per-agent config, e.g. agents/openai.yaml for OpenAI Codex
 Delete this comment block and any unused sections before submitting.
 -->

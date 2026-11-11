@@ -1,0 +1,3 @@
+interface:
+  display_name: "PR & Commit Conventions"
+  short_description: "Branch, commit, and pull request conventions"

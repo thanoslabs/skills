@@ -1,0 +1,19 @@
+# Optional. Read only by OpenAI Codex / the ChatGPT desktop app; other
+# agents ignore it. Keep instructions in SKILL.md, not here.
+# Reference: https://learn.chatgpt.com/docs/build-skills
+interface:
+  display_name: "Skill Title"                        # name shown in the app
+  short_description: "What it does, in a few words"  # keep under ~64 chars
+  # icon_small: "./assets/small-logo.svg"
+  # icon_large: "./assets/large-logo.png"
+  # brand_color: "#3B82F6"
+  # default_prompt: "Use $skill-template to ..."
+# policy:
+#   allow_implicit_invocation: false  # default true; false = run only when called by name
+# dependencies:
+#   tools:
+#     - type: "mcp"
+#       value: "serverName"
+#       description: "Why the skill needs it"
+#       transport: "streamable_http"
+#       url: "https://example.com/mcp"

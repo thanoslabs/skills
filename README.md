@@ -19,7 +19,9 @@ structure and authoring conventions; start new skills from
 ## Using a Skill
 
 Copy a skill's directory into the target agent environment (e.g.
-`.claude/skills/` or `.agents/skills/` in the consuming repo). Skills are
+`.claude/skills/` or `.agents/skills/` in the consuming repo). Each skill's
+`agents/openai.yaml` supplies its display name and description in OpenAI
+Codex; other agents ignore it. Skills are
 org-neutral by convention; install [org-defaults](skills/org-defaults/SKILL.md)
 alongside them to apply thanoslabs values and governance policy.
 

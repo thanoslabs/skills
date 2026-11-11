@@ -17,11 +17,23 @@ Where a rule conflicts with an explicit user instruction, the user wins.
 
 1. Never commit directly to `main` or `master`. If on the default branch,
    create a branch before committing.
-2. Name branches `<type>/<short-kebab-description>`:
-   - `feat/webhook-retries`
-   - `fix/auth-token-refresh`
-   - `docs/update-install-guide`
-   - `chore/bump-go-version`
+2. Name branches `<prefix>/<TICKET>-<short-kebab-description>`:
+   - `<prefix>` is the value of the `GIT_BRANCH_PREFIX` environment
+     variable when set (a personal namespace, e.g. `jonathann`; check with
+     `echo "$GIT_BRANCH_PREFIX"`), otherwise the change type (`feat`,
+     `fix`, ...).
+   - `<TICKET>-` is the ticket ID exactly as the tracker writes it
+     (`PROJ-123`, or `123` for a GitHub issue). Omit it, including the
+     dash, when there is no ticket. Never invent one.
+   - The description is 2-4 lowercase kebab-case words, at most 40
+     characters.
+
+   | `GIT_BRANCH_PREFIX` | Ticket | Branch |
+   |---|---|---|
+   | unset | none | `feat/webhook-retries` |
+   | unset | `#123` | `fix/123-auth-token-refresh` |
+   | `jonathann` | `PROJ-123` | `jonathann/PROJ-123-webhook-retries` |
+   | `jonathann` | none | `jonathann/bump-go-version` |
 3. Keep one concern per branch. If the work has drifted into a second
    concern, tell the user and suggest splitting rather than piling on.
 

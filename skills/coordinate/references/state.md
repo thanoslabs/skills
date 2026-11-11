@@ -13,29 +13,33 @@ reboots. Close out deletes it.
 | File | Written in | Purpose |
 |---|---|---|
 | `state.json` | every stage | Pipeline position and things git/GitHub can't show |
-| `spec.md` | Define | What "done" means |
+| `spec.md` | Clarify | What "done" means, decisions, assumptions |
 | `plan.md` | Plan | How to get there |
-| `review.md` | Review | Self-review findings, each marked fixed, accepted, or open |
-| `pr-body.md` | Review | PR description, used by Publish or the human |
+| `review.md` | Validate | Validator findings, each marked fixed, accepted, or open |
+| `pr-body.md` | Validate | Brief PR description, used by Publish or the human |
 | `worktree/` | Build | The item's git worktree |
 
 ## `state.json`
 
 ```json
 {
-  "version": 1,
-  "id": "issue-123",
-  "title": "Prevent token refresh race",
-  "source": { "type": "github-issue", "ref": "acme/api#123", "url": "https://github.com/acme/api/issues/123" },
+  "version": 2,
+  "id": "proj-123-backoff-config",
+  "title": "Add retry backoff configuration",
+  "group": "proj-123",
+  "part": 1,
+  "summary": "add backoff config",
+  "ticket": { "key": "PROJ-123", "url": "https://example.atlassian.net/browse/PROJ-123", "title": "Retry webhook deliveries with backoff" },
+  "source": { "type": "jira", "ref": "PROJ-123" },
   "stage": "build",
   "awaiting": "build-approval",
   "mode": "gated",
   "publish": true,
   "base": "main",
-  "branch": "fix/123-token-refresh-race",
-  "worktree": "/Users/me/.local/state/coordinate/acme-api/issue-123/worktree",
+  "branch": "jonathann/PROJ-123-backoff-config",
+  "worktree": "/Users/me/.local/state/coordinate/acme-api/proj-123-backoff-config/worktree",
   "pr": null,
-  "approvals": { "plan": "2026-10-22T14:03:00Z", "build": null, "review": null },
+  "approvals": { "clarify": "2026-10-22T13:51:00Z", "plan": "2026-10-22T14:03:00Z", "build": null, "validate": null },
   "attempts": { "verify": 1, "ci": 0, "review_rounds": 0 },
   "escalation": null,
   "updated_at": "2026-10-22T14:40:12Z"
@@ -44,12 +48,16 @@ reboots. Close out deletes it.
 
 | Field | Values |
 |---|---|
-| `source` | `{"type": "github-issue", "ref", "url"}` or `{"type": "user-input"}` |
-| `stage` | `define` `plan` `build` `review` `publish` `shepherd` `handoff` |
-| `awaiting` | `null`, `plan-approval`, `build-approval`, `review-approval`, `human-push`, `human-merge` |
+| `group` | Shared by every item from one request; lowercased ticket key, `issue-<n>`, or a slug |
+| `part` | 1-based order within the group; orders the PR announcement |
+| `summary` | A few words for the PR announcement, e.g. `add backoff config` |
+| `ticket` | `null` or `{"key", "url", "title"}`; `url` may be `null` |
+| `source` | `{"type": "jira", "ref"}`, `{"type": "github-issue", "ref", "url"}`, or `{"type": "user-input"}` |
+| `stage` | `clarify` `plan` `build` `validate` `publish` `shepherd` `handoff` |
+| `awaiting` | `null`, `clarify-approval`, `plan-approval`, `build-approval`, `validate-approval`, `human-push`, `human-merge` |
 | `mode` | `gated` or `auto` |
 | `publish` | `false` when `--local-only` |
-| `pr` | `null` or `{"number", "url"}` |
+| `pr` | `null` or `{"number", "url", "draft"}` |
 | `approvals.*` | ISO timestamp, `"auto"`, or `null` |
 | `escalation` | `null` or `{"stage", "reason", "at"}` |
 
@@ -64,7 +72,7 @@ Reset `attempts.ci` to 0 whenever CI goes green.
 2. **PR open**
    - item is `--local-only` → `pr-opened-externally`
    - labelled `dont-merge` → `held`
-   - approved, checks pass, no unresolved threads, no conflicts → `ready-to-merge`
+   - not a draft, approved, checks pass, no unresolved threads, no conflicts → `ready-to-merge`
    - otherwise → `shepherd`
 3. **No PR, `state.json` exists** → the recorded `stage`, unless it needs
    a branch that no longer exists → `inconsistent`
@@ -85,9 +93,10 @@ are kept.
 ## Lost or stale state
 
 - **State dir missing but a PR exists** (another machine, deleted state):
-  rebuild `state.json` from the PR — branch, base, and title from
-  `gh pr view`; a minimal spec from the PR body and linked issue — and
+  rebuild `state.json` from the PR - branch, base, and title from
+  `gh pr view`; the ticket key from the branch name; a minimal spec from
+  the PR body and linked ticket or issue - and
   continue at `shepherd`. The original plan is not recoverable, and
   isn't needed once the PR exists.
 - **State dir missing, no PR:** the item can't be recovered; start again
-  from Define. If the branch still exists locally, offer to reuse it.
+  from Clarify. If the branch still exists locally, offer to reuse it.

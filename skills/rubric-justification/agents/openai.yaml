@@ -1,0 +1,3 @@
+interface:
+  display_name: "Rubric Justification"
+  short_description: "Write evidence-based justifications for a rubric level"

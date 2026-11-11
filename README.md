@@ -12,12 +12,16 @@ structure and authoring conventions; start new skills from
 | [pr-commit-conventions](skills/pr-commit-conventions/SKILL.md) | Conventions for branches, commit messages, and pull requests |
 | [rubric-justification](skills/rubric-justification/SKILL.md) | Evidence-grounded justifications for a specified rubric level |
 | [rubric-justification-review](skills/rubric-justification-review/SKILL.md) | Skeptical review and actionable feedback on an existing rubric justification |
-| [coordinate](skills/coordinate/SKILL.md) | Takes a work item from issue or description to a merge-ready PR, with approval checkpoints |
+| [coordinate](skills/coordinate/SKILL.md) | Coordinator agent that clarifies work, ties it to a Jira ticket, dispatches plan/build/validate subagents, and opens draft PRs with a PR announcement |
+| [pr-shepherd](skills/pr-shepherd/SKILL.md) | One pass over an open PR: resolve conflicts, fix CI, address review comments |
+| [change-comms](skills/change-comms/SKILL.md) | Copy-pastable chat announcements of PRs and shipped work |
 
 ## Using a Skill
 
 Copy a skill's directory into the target agent environment (e.g.
-`.claude/skills/` or `.agents/skills/` in the consuming repo). Skills are
+`.claude/skills/` or `.agents/skills/` in the consuming repo). Each skill's
+`agents/openai.yaml` supplies its display name and description in OpenAI
+Codex; other agents ignore it. Skills are
 org-neutral by convention; install [org-defaults](skills/org-defaults/SKILL.md)
 alongside them to apply thanoslabs values and governance policy.
 

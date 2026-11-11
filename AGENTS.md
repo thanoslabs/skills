@@ -176,7 +176,8 @@ Relevant docs may include:
 │       ├── SKILL.md            # Required: YAML frontmatter + instructions
 │       ├── references/         # Optional: detailed docs loaded on demand
 │       ├── scripts/            # Optional: executable helpers the skill invokes
-│       └── assets/             # Optional: templates/files used in skill output
+│       ├── assets/             # Optional: templates/files used in skill output
+│       └── agents/openai.yaml  # OpenAI Codex display name + description
 ├── templates/
 │   └── skill-template/         # Copy this to start a new skill
 ├── docs/                       # Repo-level docs (authoring guide, review checklist)
@@ -206,6 +207,11 @@ Note the distinction: `skills/` holds the distributable skills this repo exists 
   `references/` files and link to them, so they are only loaded when needed.
 - `scripts/` contents must be self-contained and runnable without repo-external
   setup; document any required tools at the top of the script.
+- Keep `SKILL.md` agent-neutral. Agent-specific settings go where that
+  agent reads them: Claude Code settings in `SKILL.md` frontmatter (e.g.
+  `model`), OpenAI Codex settings in `agents/openai.yaml`. Give every
+  skill an `agents/openai.yaml` with at least `display_name` and
+  `short_description`; see the template for the other fields.
 
 ## Quality Bar
 

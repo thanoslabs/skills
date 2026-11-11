@@ -1,173 +1,281 @@
 # Stages
 
-Each stage lists what to do, the commands involved, and the exit check
-that must hold before moving on. `$DIR` is the item's state directory
-(`scripts/coordinate.sh dir <id>`); `$WT` is `$DIR/worktree`.
+Each stage lists who does it, what to do, and the exit check that must
+hold before moving on. `$DIR` is the item's state directory
+(`scripts/coordinate.sh dir <id>`); `$WT` is `$DIR/worktree`. Worker
+briefs are in [agents.md](agents.md).
 
 Write `state.json` after every stage transition, checkpoint, and
-escalation — never only at the end of a turn.
+escalation - never only at the end of a turn.
 
-## 1. Define
+## 1. Clarify (coordinator)
 
-Turn the source into `$DIR/spec.md` using
-[../assets/spec.md](../assets/spec.md).
+Goal: understand the work well enough that a worker with no conversation
+history could plan it from `spec.md` alone. You do this yourself; do not
+delegate the conversation with the user.
 
-**From an issue** (`#123`, `owner/repo#123`, or an issue URL):
+### 1a. Resolve the source
+
+**Jira ticket** (`PROJ-123`, or a URL containing `/browse/PROJ-123`):
+
+- Read the ticket with whatever Jira access exists, in this order: a
+  Jira/Atlassian MCP tool (e.g. `jira_get_issue`), `acli jira workitem view
+  PROJ-123 --json`, `jira issue view PROJ-123 --plain`. Read the summary,
+  description, acceptance criteria, comments, status, assignee, parent or
+  epic, and linked issues.
+- Record `ticket` as `{key, url, title}` (`url` may be null if no tool
+  returned it).
+- If the ticket is Done/Closed, or assigned to someone else, ask before
+  continuing.
+- No Jira access: ask the user to paste the summary, description, and
+  acceptance criteria. Keep the key so branches and PRs still carry it.
+
+**GitHub issue** (`#123`, `owner/repo#123`, URL):
 
 ```sh
 gh issue view 123 --json number,title,body,labels,assignees,state,comments,url
 ```
 
-- If the issue is closed, or assigned to someone other than the current
-  user (`gh api user --jq .login`), stop and ask before continuing.
-- Set `id` to `issue-<n>` and `source` to the issue.
-- Copy acceptance criteria verbatim when present; otherwise derive them
-  from the issue and mark them *derived* in the spec.
+If the issue is closed or assigned to someone else, ask before
+continuing. If the issue body names a Jira key, treat it as the ticket too.
 
-**From a description:** set `id` to a 2–4 word kebab-case slug and
-`source.type` to `user-input`. Write the spec from what the user said.
-Ask questions only for gaps that would change the implementation.
+**Description:** look for a Jira key in what the user said. If there is
+none, ask once whether the work has a ticket, with these options:
 
-**Readiness check** — escalate (see SKILL.md) instead of continuing if:
+1. They give a key - resolve it as above.
+2. Create one - only with `--publish` and only on an explicit yes. Ask for
+   the project key and issue type if not obvious, create it with a summary
+   and description drawn from the spec, and show the resulting key.
+3. No ticket - continue without one.
 
-- No acceptance criterion can be stated as something a test or reviewer
-  could check.
-- The work is too large for one PR. Propose a split as a list of
-  independently mergeable items, each a candidate spec.
+### 1b. Understand the work
 
-Create `$DIR` and an initial `state.json`. Exit check: `spec.md` exists
-with at least one testable acceptance criterion.
+1. Explore the target repo(s) read-only, enough to know where the change
+   lands and what it touches: structure, related code, tests, conventions.
+   For a wide sweep, delegate a read-only search to a subagent and keep
+   only its conclusions.
+2. List every unknown. For each, decide:
+   - **Would the answer change what gets built or how it's accepted?**
+     Ask the user.
+   - **Can the code, ticket, or docs answer it?** Look it up; don't ask.
+   - **Neither?** Make the conventional choice and record it under
+     Assumptions in the spec.
+3. Ask in rounds of at most 4 questions. Each question must stand on its
+   own, offer concrete options, and lead with your recommended option.
+   Use a structured question tool if the agent has one.
+4. Repeat until no open question would change the implementation.
 
-## 2. Plan
+### 1c. Split into parts
 
-1. `git fetch origin` and determine the base branch
-   (`org-defaults` → host `AGENTS.md` → `gh repo view --json defaultBranchRef`).
-2. Explore the repo read-only: conventions, related code, tests, CI
-   config. Find how to run tests, lint, and type checks — record the
-   exact commands in the plan.
-3. Write `$DIR/plan.md` using [../assets/plan.md](../assets/plan.md):
-   ordered small tasks, each with its own verification step, plus risks.
-4. Choose the branch name per `pr-commit-conventions`
-   (`<type>/<short-kebab-description>`; include the issue number when
-   there is one, e.g. `fix/123-token-refresh-race`). Record it as
-   `branch` — do not create it yet.
+One part per independently reviewable concern. Split when the work has
+multiple independent concerns or would exceed roughly 400 changed lines
+of hand-written code. For each part, decide:
+
+- a 2-4 word kebab slug (also used in the branch name)
+- a few-word summary for the PR announcement (e.g. "add backoff config")
+- its repo, if the group spans repos
+- dependencies: prefer independent parts. If part B needs part A, B's
+  base is A's branch (a stacked PR); say so in both specs.
+
+### 1d. Write the spec(s)
+
+For each part, create `$DIR`, an initial `state.json` (with `group`,
+`part`, `summary`, `ticket`), and `$DIR/spec.md` from
+[../assets/spec.md](../assets/spec.md). Copy acceptance criteria verbatim
+from the ticket or issue when present; otherwise derive them and mark
+them *(derived)*.
+
+Exit check: every part's `spec.md` has at least one testable acceptance
+criterion and no open questions that would change the implementation.
+
+**Checkpoint: clarify.** Present the parts (slug, summary, repo,
+dependencies), each spec's goal and acceptance criteria, the assumptions
+made, and the planned branch names. This is where the user corrects the
+scope before any worker runs.
+
+## 2. Plan (planner)
+
+1. `git fetch origin` and determine the base branch (`org-defaults` →
+   host `AGENTS.md` → `gh repo view --json defaultBranchRef`), or the
+   parent part's branch for a stacked part. Record `base`.
+2. Work out the branch name per "Branch names" in `SKILL.md` and record
+   it as `branch` (don't create it yet).
+3. Spawn a **planner** with the planner brief. It writes `$DIR/plan.md`
+   from [../assets/plan.md](../assets/plan.md).
+4. Check the plan (see [agents.md](agents.md#checking-worker-reports)):
+   every acceptance criterion is covered by a task with a verification
+   step, and the test/lint/type-check commands are concrete.
 
 **Checkpoint: plan.** Present the spec and plan together.
 
-After approval, if publishing and the source is an issue: assign the
-current user (`gh issue edit <n> --add-assignee @me`), add the
-`in-progress` label unless `scripts/coordinate.sh missing-labels` lists it,
-and comment the plan on the issue.
+After approval, if publishing and the source is a GitHub issue: assign
+the current user (`gh issue edit <n> --add-assignee @me`), add the
+`in-progress` label if the repo has it, and comment the
+plan on the issue.
 
-## 3. Build
+## 3. Build (builder)
+
+You create the branch and worktree, so names are always right:
 
 ```sh
-git worktree add -b "$BRANCH" "$WT" "origin/$BASE"
+git worktree add -b "$BRANCH" "$WT" "origin/$BASE"   # stacked part: use the parent branch
 ```
 
-1. Work task by task through `plan.md`, in `$WT` only.
-2. Where the repo has tests, write or update the test for a behavior
-   before implementing it.
-3. Commit each logical change per `pr-commit-conventions`. Reference the
-   issue in the body (`Refs #123`) only when the source is an issue.
-4. **Verify:** run the plan's test, lint, and type-check commands.
-   On failure, fix and re-run; increment `attempts.verify` per failed
-   run. At 3, escalate.
-5. If the plan turns out wrong mid-build, update `plan.md` and note the
-   deviation — in gated mode, stop and present the revised plan before
-   continuing.
+Spawn a **builder** with the builder brief. It works task by task through
+`plan.md` in `$WT` only, writes tests first where the repo has tests,
+commits per `pr-commit-conventions` (with `Refs: PROJ-123` in the body
+when there is a ticket, `Refs #123` for an issue), runs the plan's checks,
+and returns the build report.
 
-Exit check: all plan tasks done, worktree clean, verification passing
-(or failures explicitly accepted by the user).
+Then check it yourself:
 
-**Checkpoint: build.** Present `git diff --stat origin/$BASE...HEAD`,
-the commit list, verification results, and any plan deviations.
+```sh
+git -C "$WT" status --porcelain                 # must be empty
+git -C "$WT" log --oneline "origin/$BASE"..HEAD # commits match the report
+git -C "$WT" diff --stat "origin/$BASE"...HEAD
+```
 
-## 4. Review
+- Failed checks: send the failures back to the builder (continue the
+  same agent if the harness supports it, otherwise spawn a new builder
+  with the previous report attached). Increment `attempts.verify` per
+  failed run; at 3, escalate.
+- Plan deviations: the builder records them in `plan.md`. In gated mode,
+  present a revised plan before letting the builder continue.
 
-1. Review the full diff against `spec.md` with **fresh context**: spawn
-   a subagent with no conversation history if the agent supports it,
-   giving it only the spec, the plan, the diff, and the repo. Otherwise
-   re-read the diff from scratch as a skeptical reviewer.
-2. The reviewer reports in three groups:
-   - **Blockers** — bugs, unmet acceptance criteria, security issues,
-     missing tests for new behavior.
-   - **Important** — meaningful but non-blocking problems.
-   - **Nits** — style and cleanup.
-3. Write the findings to `$DIR/review.md`, marking each as fixed,
-   accepted, or open. Fix all blockers, re-verify, and re-review once.
-   Fix important issues where cheap; leave the rest open for the human.
-4. Write `$DIR/pr-body.md` in the `pr-commit-conventions` PR format.
-   Include `Closes #<n>` when the source is an issue. The Testing section
-   lists exactly what was run and its result.
-5. Get the release label: `scripts/coordinate.sh release-label "<title>"`.
-   If the title isn't Conventional Commits, fix the title. Check it
-   against `scripts/coordinate.sh missing-labels`; if the repo lacks it, add
-   a warning to the PR body's Notes section.
-6. Run the `pr-commit-conventions` "Before Requesting Review" checklist.
+Exit check: all plan tasks done, worktree clean, checks passing (or
+failures explicitly accepted by the user).
 
-**Checkpoint: review.** Present `review.md` (fixed and remaining), the
-PR title, the release label, and `pr-body.md`. This is the last checkpoint before anything
-is pushed.
+**Checkpoint: build.** Present the diff stat, the commit list, the check
+results, and any plan deviations.
 
-## 5. Publish
+## 4. Validate (validator)
 
-Skip with `--local-only`; go straight to Handoff.
+1. Spawn a **validator** with the validator brief - a fresh agent that
+   never saw the build. It re-runs every check from the plan, verifies each
+   acceptance criterion with evidence, reviews the diff, and writes
+   `$DIR/review.md` with findings grouped as **Blockers**, **Important**,
+   and **Nits**.
+2. If there are blockers, send them to the builder to fix, then spawn a
+   new validator once more. Still blocked after that: escalate.
+3. Fix important findings where cheap (via the builder); leave the rest
+   marked open for the human. Mark each finding fixed, accepted, or open.
+4. Write the PR title (Conventional Commits, same type as the branch
+   when the branch uses a type prefix) and `$DIR/pr-body.md` from
+   [../assets/pr-body.md](../assets/pr-body.md).
+5. Pick the release label from the title (see Labels in `SKILL.md`) and
+   check that the repo has it.
+6. Run the `pr-commit-conventions` "Before Requesting Review" checklist,
+   except its PR description structure (overridden below).
+
+**Checkpoint: validate.** Present `review.md` (fixed and remaining), the
+check results, the PR title, the release label (or that it is missing),
+and `pr-body.md`. This is the last checkpoint before anything is pushed.
+
+### PR description (override)
+
+PRs opened by this skill use a **brief** description instead of the
+`pr-commit-conventions` four-section structure: at most two sentences
+saying what changed and why, then a ticket line. Test results, review
+findings, and notes go in the checkpoint and handoff reports, not the PR.
+
+## 5. Publish (coordinator)
+
+Skip with `--local-only`; go to Handoff.
 
 ```sh
 git -C "$WT" fetch origin
 git -C "$WT" rebase "origin/$BASE"          # unpublished branch: rebase is fine
-# re-run verification if the rebase brought in changes
+# re-run the plan's checks if the rebase brought in changes
 git -C "$WT" push -u origin "$BRANCH"
-gh pr create --head "$BRANCH" --base "$BASE" --title "<title>" \
+gh pr create --draft --head "$BRANCH" --base "$BASE" --title "<title>" \
   --body-file "$DIR/pr-body.md" --label "<release label>"
 ```
 
-Omit `--label` if the repo lacks the release label — `gh pr create`
-fails on unknown labels.
+Omit `--label` if the repo lacks the release label - `gh pr create` fails
+on unknown labels. Record `pr` as `{number, url, draft: true}`.
 
-Record `pr.number` and `pr.url`. Reviewers are requested by CODEOWNERS;
-request others only if `org-defaults` or the host repo says to.
+Do not request reviewers: draft PRs are not ready for review. When the
+PR is marked ready, CODEOWNERS requests reviewers.
 
-## 6. Shepherd
+## 6. Report (coordinator)
 
-One pass per invocation — see [shepherding.md](shepherding.md). After
-the pass, re-run `coordinate.sh status`; if still `shepherd`, report what
-is pending (CI running, awaiting review) and stop. The user can re-run
-later or schedule repeats with their agent's loop or scheduling feature.
+After publishing, get the group's PRs and hand them to the
+`change-comms` skill as a **review request**:
+
+```sh
+scripts/coordinate.sh prs <group>
+# {"group", "ticket": {key, title, url} | null,
+#  "prs": [{url, summary, title, draft}],     ordered by part
+#  "pending": [{id, summary}]}                parts with no PR yet
+```
+
+Pass `prs` in the given order, with each `summary`, the ticket as the
+header, and `pending` as not yet published. Present the result in a
+fenced block. `/coordinate comms` reprints it at any time.
+
+## 7. Shepherd (coordinator + builder)
+
+For each open PR in play, run one pass of the `pr-shepherd` skill with:
+
+- the PR number, and the item's worktree `$WT` as the checkout
+- the check commands from `plan.md`
+- a builder subagent as the implementer (see
+  [agents.md](agents.md#builder-brief)): you triage, the builder makes
+  code changes, you check its result
+
+Then, from the pass report:
+
+- `ci` fixed this pass → increment `attempts.ci`; CI green → reset it to
+  0. At 3 consecutive, escalate.
+- Changes pushed in response to a review → increment
+  `attempts.review_rounds`. At 5, escalate.
+- "Stopped for human" → escalate with the pass's reason.
+- If the PR has `ready-to-merge` but the pass found new failures,
+  comments, or conflicts, remove the label.
+
+Re-run `coordinate.sh status`; if still `shepherd`, report what is
+pending and stop. The user can re-run later or schedule repeats.
 
 No checkpoints here: fixes go to the PR, where reviewers see them.
 
-## 7. Handoff
+### `/coordinate ready <id>`
 
-**Local-only:** set `awaiting: human-push` and print:
+Only on the user's request: confirm checks are green or explain why not,
+then `gh pr ready <n>` and set `pr.draft` to false. CODEOWNERS reviewers
+are requested by GitHub at this point.
+
+## 8. Handoff (coordinator)
+
+**Local-only:** set `awaiting: human-push` and print, per item:
 
 ```sh
 git -C <worktree> push -u origin <branch>
-gh pr create --head <branch> --base <base> --title "<title>" \
+gh pr create --draft --head <branch> --base <base> --title "<title>" \
   --body-file <state-dir>/pr-body.md --label <release label>
 ```
 
-Omit `--label` if the repo lacks the release label, and tell the user
-to set the release label by hand.
+Omit `--label` if the repo lacks the release label, and tell the user to
+set it by hand. Tell them to resume with `--publish` once the PRs exist;
+the PRs are then recorded and `/coordinate comms` prints the announcement.
 
-If the user later opens the PR and resumes with `--publish`, shepherding
-picks up from there.
+**Draft PR open:** report the PR URL, check status, and that marking it
+ready is theirs (or `/coordinate ready <id>`).
 
-**Published:** when `derived_stage` is `ready-to-merge`, add the
-`ready-to-merge` label to the PR, set
-`awaiting: human-merge`, and report the PR URL. Do not merge.
+**Published and ready:** when `derived_stage` is `ready-to-merge`, add the
+`ready-to-merge` label, set `awaiting: human-merge`, and report the PR URL.
+Do not merge.
 
-## 8. Close out
+## 9. Close out (coordinator)
 
 When the PR is merged or closed (or on `abandon`):
 
 ```sh
-git worktree remove "$WT"                  # refuses if dirty — report, don't force
+git worktree remove "$WT"                  # refuses if dirty - report, don't force
 git branch -d "$BRANCH"                    # merged only; -d refuses unmerged work
 rm -rf "$DIR"
 ```
 
 On `abandon` of a published item, do not close the PR or delete the
-remote branch — tell the user they exist. Keep the local branch on
-abandon unless the user says otherwise.
+remote branch - tell the user they exist. Keep the local branch on
+abandon unless the user says otherwise. Never change the Jira ticket's
+status.

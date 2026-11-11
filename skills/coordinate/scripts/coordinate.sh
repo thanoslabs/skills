@@ -9,12 +9,10 @@
 #   coordinate.sh dir <id>      print the item's state directory (not created)
 #   coordinate.sh status <id>   print observed facts and derived stage as JSON
 #   coordinate.sh list          list items for the current repository
-#   coordinate.sh release-label "<pr title>"
-#                            print the release label for a Conventional Commits title
-#   coordinate.sh missing-labels
-#                            list the expected labels the repo doesn't have (read-only)
+#   coordinate.sh prs <group>   print a group's PRs (all repos) as JSON for change-comms
 #
-# Run from inside the target repository (any worktree).
+# Run from inside the target repository (any worktree). `prs` works from
+# anywhere.
 set -euo pipefail
 
 die() { echo "coordinate.sh: $*" >&2; exit 1; }
@@ -77,6 +75,7 @@ cmd_status() {
         .approved = (.reviewDecision == "APPROVED" or (.reviewDecision == "" and any(.latestReviews[]; .state == "APPROVED")))
         | .held = any(.labels[]; .name == "dont-merge")
         | del(.latestReviews, .labels) else . end' 2>/dev/null || echo null)
+    pr=${pr:-null}  # --jq prints nothing for a null result
     if [[ "$pr" != "null" && "$(jq -r .state <<<"$pr")" == "OPEN" ]]; then
       local n; n=$(jq -r .number <<<"$pr")
       # `gh pr checks` exits non-zero on failing/pending checks; the JSON is still valid.
@@ -92,6 +91,7 @@ cmd_status() {
             reviewThreads(first:100){ nodes { isResolved } } } } }' \
         --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not)] | length' \
         2>/dev/null || echo null)
+      unresolved=${unresolved:-null}
     fi
   fi
 
@@ -106,14 +106,15 @@ cmd_status() {
           derived="pr-opened-externally"
         elif [[ "$(jq -r .held <<<"$pr")" == "true" ]]; then
           derived="held"
-        elif [[ "$(jq -r .approved <<<"$pr")" == "true" && "$checks" =~ ^(pass|none)$ \
+        elif [[ "$(jq -r .isDraft <<<"$pr")" == "false" && "$(jq -r .approved <<<"$pr")" == "true" \
+                && "$checks" =~ ^(pass|none)$ \
                 && "$unresolved" == "0" && "$(jq -r .mergeable <<<"$pr")" != "CONFLICTING" ]]; then
           derived="ready-to-merge"
         else
           derived="shepherd"
         fi ;;
     esac
-  elif [[ "$stage" =~ ^(build|review|publish|shepherd|handoff)$ && "$branch_exists" == "false" ]]; then
+  elif [[ "$stage" =~ ^(build|validate|publish|shepherd|handoff)$ && "$branch_exists" == "false" ]]; then
     derived="inconsistent"
   fi
 
@@ -134,33 +135,32 @@ cmd_list() {
   [[ -d "$root" ]] || { echo "[]"; return; }
   local f
   for f in "$root"/*/state.json; do
-    [[ -f "$f" ]] && jq -c '{id, title, stage, awaiting, mode, publish}' "$f"
+    [[ -f "$f" ]] && jq -c '{id, title, group, part, ticket: .ticket.key, stage, awaiting, mode, publish, pr: .pr.url}' "$f"
   done | jq -s .
 }
 
-# feat! / fix(scope)! -> major, feat -> minor, fix -> fix, any other type -> patch.
-cmd_release_label() {
-  local title=$1 re='^([a-z]+)(\([^)]*\))?(!)?: '
-  [[ "$title" =~ $re ]] || die "title is not Conventional Commits: '$title'"
-  if [[ -n "${BASH_REMATCH[3]}" ]]; then echo major
-  else
-    case "${BASH_REMATCH[1]}" in
-      feat) echo minor ;;
-      fix)  echo fix ;;
-      *)    echo patch ;;
-    esac
-  fi
+# A group's items across every repo, split into published PRs (ordered by
+# part) and items with no PR yet.
+cmd_prs() {
+  local group=$1 root
+  root=$(state_root)
+  shopt -s nullglob
+  local files=("$root"/*/*/state.json)
+  ((${#files[@]})) || die "no items found under $root"
+  jq -s --arg g "$group" '
+    [.[] | select(.group == $g)] | sort_by(.part // 0, .id) as $items
+    | if ($items | length) == 0 then error("no items in group \($g)") else . end
+    | {group: $g,
+       ticket: ($items | map(.ticket) | map(select(. != null)) | first),
+       prs: [$items[] | select(.pr.url != null)
+             | {url: .pr.url, summary: (.summary // .title), title, draft: (.pr.draft // null)}],
+       pending: [$items[] | select(.pr.url == null) | {id, summary: (.summary // .title)}]}
+  ' "${files[@]}"
 }
 
-# The skill never creates labels; repos are expected to provision these.
-EXPECTED_LABELS=(in-progress needs-human ready-to-merge major minor fix patch)
-
-cmd_missing_labels() {
-  have_gh || die "gh is not installed or not authenticated"
-  gh label list --limit 1000 --json name \
-    | jq -c --args '[.[].name] as $have | [$ARGS.positional[] | select(IN($have[]) | not)]' \
-      "${EXPECTED_LABELS[@]}"
-}
+case "${1:-}" in
+  prs)    [[ -n "${2:-}" ]] || die "usage: coordinate.sh prs <group>"; cmd_prs "$2"; exit ;;
+esac
 
 git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git repository"
 
@@ -168,7 +168,5 @@ case "${1:-}" in
   dir)    check_id "${2:-}"; item_dir "$2" ;;
   status) check_id "${2:-}"; cmd_status "$2" ;;
   list)   cmd_list ;;
-  release-label) [[ -n "${2:-}" ]] || die "usage: coordinate.sh release-label \"<title>\""; cmd_release_label "$2" ;;
-  missing-labels) cmd_missing_labels ;;
-  *)      sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *)      sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

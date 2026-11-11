@@ -1,6 +1,6 @@
 # Plan: <title>
 
-Base: `<base>` · Branch: `<type>/<slug>`
+Base: `<base>` · Branch: `<branch>`
 
 ## Context
 

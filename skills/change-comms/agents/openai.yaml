@@ -1,0 +1,3 @@
+interface:
+  display_name: "Change Comms"
+  short_description: "Copy-pastable chat updates for PRs and shipped work"

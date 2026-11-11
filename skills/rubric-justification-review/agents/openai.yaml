@@ -1,0 +1,3 @@
+interface:
+  display_name: "Rubric Justification Review"
+  short_description: "Critique whether a rubric justification holds up"

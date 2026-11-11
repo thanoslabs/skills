@@ -83,9 +83,27 @@ is a GitHub issue (`#123`, `owner/repo#123`, or URL).
 | `COORDINATE_BRANCH_PREFIX` | Personal branch namespace, e.g. `jonathann` → `jonathann/PROJ-123-retry-backoff` | unset: `<type>/…` per `pr-commit-conventions` |
 | `COORDINATE_STATE_DIR` | Where per-item state lives | `${XDG_STATE_HOME:-~/.local/state}/coordinate` |
 
-Get branch names only from `scripts/coordinate.sh branch` (see Plan in
-[references/stages.md](references/stages.md)); it applies the prefix,
-ticket key, and validation.
+### Branch names
+
+```
+<prefix>/<TICKET-KEY>-<slug>
+```
+
+- `<prefix>`: the value of `COORDINATE_BRANCH_PREFIX` (check with
+  `echo "$COORDINATE_BRANCH_PREFIX"`); if unset, the Conventional Commits
+  type the PR title will use (`feat`, `fix`, ...).
+- `<TICKET-KEY>-`: the Jira key exactly as Jira writes it (uppercase,
+  e.g. `PROJ-123`). Omit it, including the dash, when there is no ticket.
+  For a GitHub issue with no Jira ticket, use the issue number instead
+  (`fix/123-token-refresh-race`).
+- `<slug>`: the part's 2-4 word lowercase kebab-case slug, at most 40
+  characters.
+
+| `COORDINATE_BRANCH_PREFIX` | Ticket | Branch |
+|---|---|---|
+| `jonathann` | `PROJ-123` | `jonathann/PROJ-123-retry-backoff` |
+| `jonathann` | none | `jonathann/retry-backoff` |
+| unset | `PROJ-123` | `feat/PROJ-123-retry-backoff` |
 
 ## Prerequisites
 
@@ -201,8 +219,12 @@ label when the user resumes with a decision.
 ## Labels
 
 Labels are used **only if they already exist** in the repo; never create
-them. Run `scripts/coordinate.sh missing-labels` once per invocation
-before the first label write and skip any label it lists.
+them. Before the first label write in an invocation, list the repo's
+labels once and skip any label below that isn't there:
+
+```sh
+gh label list --limit 1000 --json name --jq '.[].name'
+```
 
 | Label | Applied to | When |
 |---|---|---|
@@ -212,10 +234,18 @@ before the first label write and skip any label it lists.
 | `major` `minor` `fix` `patch` | PR | Publish - exactly one release label |
 | `dont-merge` | PR | **Never** added or removed by the skill; a human hold that pauses the pipeline |
 
-Pick the release label with `scripts/coordinate.sh release-label "<pr title>"`:
-breaking change (`!`) → `major`, `feat` → `minor`, `fix` → `fix`, any
-other type → `patch`. Apply it once at Publish; if a human changes it
-later, leave their choice alone.
+Pick the release label from the PR title (`<type>(<scope>)!: <subject>`,
+scope and `!` optional), first match wins:
+
+| Title | Label |
+|---|---|
+| Has `!` before the colon (any type) | `major` |
+| `feat` | `minor` |
+| `fix` | `fix` |
+| Any other type | `patch` |
+
+If the title isn't in that form, fix the title first. Apply the label
+once at Publish; if a human changes it later, leave their choice alone.
 
 **A missing release label is not a silent skip.** Release tooling usually
 falls back to a default bump, so a `feat` PR without `minor` would release

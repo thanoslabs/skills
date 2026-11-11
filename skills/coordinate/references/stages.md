@@ -98,15 +98,8 @@ scope before any worker runs.
 1. `git fetch origin` and determine the base branch (`org-defaults` →
    host `AGENTS.md` → `gh repo view --json defaultBranchRef`), or the
    parent part's branch for a stacked part. Record `base`.
-2. Compute the branch name and record it as `branch` (don't create it yet):
-
-   ```sh
-   scripts/coordinate.sh branch <type> <slug> [<TICKET-KEY>]
-   # COORDINATE_BRANCH_PREFIX=jonathann → jonathann/PROJ-123-retry-backoff
-   # unset                              → feat/PROJ-123-retry-backoff
-   ```
-
-   `<type>` is the Conventional Commits type the PR title will use.
+2. Work out the branch name per "Branch names" in `SKILL.md` and record
+   it as `branch` (don't create it yet).
 3. Spawn a **planner** with the planner brief. It writes `$DIR/plan.md`
    from [../assets/plan.md](../assets/plan.md).
 4. Check the plan (see [agents.md](agents.md#checking-worker-reports)):
@@ -117,7 +110,7 @@ scope before any worker runs.
 
 After approval, if publishing and the source is a GitHub issue: assign
 the current user (`gh issue edit <n> --add-assignee @me`), add the
-`in-progress` label unless `missing-labels` lists it, and comment the
+`in-progress` label if the repo has it, and comment the
 plan on the issue.
 
 ## 3. Build (builder)
@@ -166,11 +159,11 @@ results, and any plan deviations.
    new validator once more. Still blocked after that: escalate.
 3. Fix important findings where cheap (via the builder); leave the rest
    marked open for the human. Mark each finding fixed, accepted, or open.
-4. Write the PR title (Conventional Commits; fix it if the release-label
-   script rejects it) and `$DIR/pr-body.md` from
+4. Write the PR title (Conventional Commits, same type as the branch
+   when the branch uses a type prefix) and `$DIR/pr-body.md` from
    [../assets/pr-body.md](../assets/pr-body.md).
-5. Get the release label: `scripts/coordinate.sh release-label "<title>"`,
-   and check it against `missing-labels`.
+5. Pick the release label from the title (see Labels in `SKILL.md`) and
+   check that the repo has it.
 6. Run the `pr-commit-conventions` "Before Requesting Review" checklist,
    except its PR description structure (overridden below).
 

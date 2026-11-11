@@ -1,6 +1,6 @@
 # Plan: <title>
 
-Base: `<base>` · Branch: `<branch from coordinate.sh branch>`
+Base: `<base>` · Branch: `<branch>`
 
 ## Context
 

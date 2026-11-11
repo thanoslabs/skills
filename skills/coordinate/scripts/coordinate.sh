@@ -13,8 +13,13 @@
 #                            print the release label for a Conventional Commits title
 #   coordinate.sh missing-labels
 #                            list the expected labels the repo doesn't have (read-only)
+#   coordinate.sh branch <type> <slug> [<TICKET-KEY>]
+#                            print the branch name; uses $COORDINATE_BRANCH_PREFIX when set
+#   coordinate.sh slack <group>
+#                            print a copy-pastable Slack message listing the group's PRs
 #
-# Run from inside the target repository (any worktree).
+# Run from inside the target repository (any worktree); `branch` and
+# `slack` work from anywhere. `slack` reads every repo's items.
 set -euo pipefail
 
 die() { echo "coordinate.sh: $*" >&2; exit 1; }
@@ -108,14 +113,15 @@ cmd_status() {
           derived="pr-opened-externally"
         elif [[ "$(jq -r .held <<<"$pr")" == "true" ]]; then
           derived="held"
-        elif [[ "$(jq -r .approved <<<"$pr")" == "true" && "$checks" =~ ^(pass|none)$ \
+        elif [[ "$(jq -r .isDraft <<<"$pr")" == "false" && "$(jq -r .approved <<<"$pr")" == "true" \
+                && "$checks" =~ ^(pass|none)$ \
                 && "$unresolved" == "0" && "$(jq -r .mergeable <<<"$pr")" != "CONFLICTING" ]]; then
           derived="ready-to-merge"
         else
           derived="shepherd"
         fi ;;
     esac
-  elif [[ "$stage" =~ ^(build|review|publish|shepherd|handoff)$ && "$branch_exists" == "false" ]]; then
+  elif [[ "$stage" =~ ^(build|validate|publish|shepherd|handoff)$ && "$branch_exists" == "false" ]]; then
     derived="inconsistent"
   fi
 
@@ -136,7 +142,7 @@ cmd_list() {
   [[ -d "$root" ]] || { echo "[]"; return; }
   local f
   for f in "$root"/*/state.json; do
-    [[ -f "$f" ]] && jq -c '{id, title, stage, awaiting, mode, publish}' "$f"
+    [[ -f "$f" ]] && jq -c '{id, title, group, part, ticket: .ticket.key, stage, awaiting, mode, publish, pr: .pr.url}' "$f"
   done | jq -s .
 }
 
@@ -154,6 +160,37 @@ cmd_release_label() {
   fi
 }
 
+# <prefix>/<KEY>-<slug> with COORDINATE_BRANCH_PREFIX set, else <type>/<KEY>-<slug>.
+cmd_branch() {
+  local type=$1 slug=$2 key=${3:-} prefix=${COORDINATE_BRANCH_PREFIX:-}
+  [[ "$type" =~ ^[a-z]+$ ]] || die "invalid type '$type' (want e.g. feat, fix)"
+  [[ "$slug" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ && ${#slug} -le 40 ]] \
+    || die "invalid slug '$slug' (want short kebab-case, <= 40 chars)"
+  [[ -z "$key" || "$key" =~ ^[A-Z][A-Z0-9_]*-[0-9]+$ ]] || die "invalid ticket key '$key' (want e.g. PROJ-123)"
+  [[ -z "$prefix" || "$prefix" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid COORDINATE_BRANCH_PREFIX '$prefix'"
+  echo "${prefix:-$type}/${key:+$key-}$slug"
+}
+
+# Lists published PRs for a group across every repo's state, ordered by part.
+cmd_slack() {
+  local group=$1 root
+  root=$(state_root)
+  shopt -s nullglob
+  local files=("$root"/*/*/state.json)
+  ((${#files[@]})) || die "no items found under $root"
+  jq -rs --arg g "$group" '
+    [.[] | select(.group == $g)] as $items
+    | if ($items | length) == 0 then error("no items in group \($g)") else . end
+    | [$items[] | select(.pr.url != null)] | sort_by(.part // 0, .id) as $prs
+    | if ($prs | length) == 0 then error("no PRs published yet for group \($g)") else . end
+    | ($items | map(.ticket) | map(select(. != null)) | first) as $t
+    | (if $t then "\($t.key)" + (if $t.title then " - \($t.title)" else "" end)
+       else ($prs[0].title) end) as $head
+    | "PRs for \($head):",
+      ($prs[] | "• \(.pr.url) - \(.summary // .title)")
+  ' "${files[@]}"
+}
+
 # The skill never creates labels; repos are expected to provision these.
 EXPECTED_LABELS=(in-progress needs-human ready-to-merge major minor fix patch)
 
@@ -164,6 +201,11 @@ cmd_missing_labels() {
       "${EXPECTED_LABELS[@]}"
 }
 
+case "${1:-}" in
+  branch) [[ $# -ge 3 ]] || die "usage: coordinate.sh branch <type> <slug> [<TICKET-KEY>]"; cmd_branch "$2" "$3" "${4:-}"; exit ;;
+  slack)  [[ -n "${2:-}" ]] || die "usage: coordinate.sh slack <group>"; cmd_slack "$2"; exit ;;
+esac
+
 git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git repository"
 
 case "${1:-}" in
@@ -172,5 +214,5 @@ case "${1:-}" in
   list)   cmd_list ;;
   release-label) [[ -n "${2:-}" ]] || die "usage: coordinate.sh release-label \"<title>\""; cmd_release_label "$2" ;;
   missing-labels) cmd_missing_labels ;;
-  *)      sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *)      sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

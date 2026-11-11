@@ -4,6 +4,16 @@ One pass per invocation, in this order. Work in the item's worktree and
 pull first: `git -C "$WT" pull --ff-only`. If that fails, someone else
 pushed conflicting history — escalate.
 
+The coordinator triages: reads CI and comments, classifies them, and
+decides what to do. Code changes go to a builder (see
+[agents.md](agents.md#builder-brief)) with the specific failures or
+comments to address. The coordinator then checks the result, pushes, and
+replies on the PR.
+
+Draft PRs get the same pass: fix CI and conflicts, and answer any
+comments that arrive. Reviews usually start once the human marks the PR
+ready.
+
 ## 1. Merge conflicts
 
 If `mergeable` is `CONFLICTING`:
@@ -71,7 +81,8 @@ push once.
 
 ## 4. Re-request review
 
-If you pushed changes in response to a review, re-request it:
+If the PR is not a draft and you pushed changes in response to a review,
+re-request it:
 
 ```sh
 gh pr edit <n> --add-reviewer <login>

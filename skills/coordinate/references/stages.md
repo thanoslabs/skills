@@ -72,7 +72,7 @@ multiple independent concerns or would exceed roughly 400 changed lines
 of hand-written code. For each part, decide:
 
 - a 2-4 word kebab slug (also used in the branch name)
-- a few-word summary for the Slack message (e.g. "add backoff config")
+- a few-word summary for the PR announcement (e.g. "add backoff config")
 - its repo, if the group spans repos
 - dependencies: prefer independent parts. If part B needs part A, B's
   base is A's branch (a stacked PR); say so in both specs.
@@ -199,32 +199,42 @@ PR is marked ready, CODEOWNERS requests reviewers.
 
 ## 6. Report (coordinator)
 
-After publishing, print the group's Slack message in a fenced block so it
-copies cleanly:
+After publishing, get the group's PRs and hand them to the
+`change-comms` skill as a **review request**:
 
 ```sh
-scripts/coordinate.sh slack <group>
+scripts/coordinate.sh prs <group>
+# {"group", "ticket": {key, title, url} | null,
+#  "prs": [{url, summary, title, draft}],     ordered by part
+#  "pending": [{id, summary}]}                parts with no PR yet
 ```
 
-Output looks like:
-
-```
-PRs for PROJ-123 - Retry webhook deliveries with backoff:
-• https://github.com/acme/api/pull/42 - add backoff config
-• https://github.com/acme/worker/pull/7 - wire retries into worker
-```
-
-Bullets are ordered by part, and each uses the item's `summary`. If some
-parts of the group are not yet published, print the message for the
-published ones and list the rest as pending below it. `/coordinate slack`
-reprints it at any time.
+Pass `prs` in the given order, with each `summary`, the ticket as the
+header, and `pending` as not yet published. Present the result in a
+fenced block. `/coordinate comms` reprints it at any time.
 
 ## 7. Shepherd (coordinator + builder)
 
-One pass per invocation - see [shepherding.md](shepherding.md). Code
-changes from a pass go to a builder; you triage, verify, push, and reply.
-After the pass, re-run `coordinate.sh status`; if still `shepherd`, report
-what is pending and stop. The user can re-run later or schedule repeats.
+For each open PR in play, run one pass of the `pr-shepherd` skill with:
+
+- the PR number, and the item's worktree `$WT` as the checkout
+- the check commands from `plan.md`
+- a builder subagent as the implementer (see
+  [agents.md](agents.md#builder-brief)): you triage, the builder makes
+  code changes, you check its result
+
+Then, from the pass report:
+
+- `ci` fixed this pass → increment `attempts.ci`; CI green → reset it to
+  0. At 3 consecutive, escalate.
+- Changes pushed in response to a review → increment
+  `attempts.review_rounds`. At 5, escalate.
+- "Stopped for human" → escalate with the pass's reason.
+- If the PR has `ready-to-merge` but the pass found new failures,
+  comments, or conflicts, remove the label.
+
+Re-run `coordinate.sh status`; if still `shepherd`, report what is
+pending and stop. The user can re-run later or schedule repeats.
 
 No checkpoints here: fixes go to the PR, where reviewers see them.
 
@@ -246,7 +256,7 @@ gh pr create --draft --head <branch> --base <base> --title "<title>" \
 
 Omit `--label` if the repo lacks the release label, and tell the user to
 set it by hand. Tell them to resume with `--publish` once the PRs exist;
-the PRs are then recorded and `/coordinate slack` prints the message.
+the PRs are then recorded and `/coordinate comms` prints the announcement.
 
 **Draft PR open:** report the PR URL, check status, and that marking it
 ready is theirs (or `/coordinate ready <id>`).

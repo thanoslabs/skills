@@ -5,7 +5,7 @@ description: >
   clarifies the work with the user (asking questions until nothing material
   is uncertain), ties it to a Jira ticket where possible, then dispatches
   subagents to plan, build, and validate it, opens draft PRs with brief
-  descriptions, and prints a copy-pastable Slack message listing the PRs.
+  descriptions, and prints a copy-pastable message announcing the PRs.
   Shepherds CI and review feedback afterwards; never merges. Use when the
   user says "work on PROJ-123", "work on issue #123", "take this ticket to
   a PR", "coordinate this…", "pick this up end to end", "/coordinate", or
@@ -52,7 +52,7 @@ merge"; merging is a human decision in every mode.
 /coordinate [<id|group>] [--auto | --gated] [--local-only | --publish] resume
 /coordinate approve [<id|group>] [feedback]                         pass a checkpoint
 /coordinate ready <id>                                              mark a draft PR ready for review
-/coordinate slack [<group>]                                         reprint the Slack message
+/coordinate comms [<group>]                                         reprint the PR announcement
 /coordinate status [<id|group>]                                     report only
 /coordinate list                                                    all items in this repo
 /coordinate abandon <id>                                            stop and clean up
@@ -80,30 +80,14 @@ is a GitHub issue (`#123`, `owner/repo#123`, or URL).
 
 | Env var | Purpose | Default |
 |---|---|---|
-| `COORDINATE_BRANCH_PREFIX` | Personal branch namespace, e.g. `jonathann` → `jonathann/PROJ-123-retry-backoff` | unset: `<type>/…` per `pr-commit-conventions` |
+| `GIT_BRANCH_PREFIX` | Personal branch namespace, e.g. `jonathann` → `jonathann/PROJ-123-retry-backoff` | unset: the change type, e.g. `feat/PROJ-123-retry-backoff` |
 | `COORDINATE_STATE_DIR` | Where per-item state lives | `${XDG_STATE_HOME:-~/.local/state}/coordinate` |
 
-### Branch names
-
-```
-<prefix>/<TICKET-KEY>-<slug>
-```
-
-- `<prefix>`: the value of `COORDINATE_BRANCH_PREFIX` (check with
-  `echo "$COORDINATE_BRANCH_PREFIX"`); if unset, the Conventional Commits
-  type the PR title will use (`feat`, `fix`, ...).
-- `<TICKET-KEY>-`: the Jira key exactly as Jira writes it (uppercase,
-  e.g. `PROJ-123`). Omit it, including the dash, when there is no ticket.
-  For a GitHub issue with no Jira ticket, use the issue number instead
-  (`fix/123-token-refresh-race`).
-- `<slug>`: the part's 2-4 word lowercase kebab-case slug, at most 40
-  characters.
-
-| `COORDINATE_BRANCH_PREFIX` | Ticket | Branch |
-|---|---|---|
-| `jonathann` | `PROJ-123` | `jonathann/PROJ-123-retry-backoff` |
-| `jonathann` | none | `jonathann/retry-backoff` |
-| unset | `PROJ-123` | `feat/PROJ-123-retry-backoff` |
+Name branches per `pr-commit-conventions` (which defines
+`GIT_BRANCH_PREFIX`), using the part's slug as the description and the
+Jira key or issue number as the ticket. If that skill isn't installed:
+`<GIT_BRANCH_PREFIX or type>/<TICKET>-<slug>`, omitting `<TICKET>-` when
+there is no ticket.
 
 ## Prerequisites
 
@@ -115,6 +99,9 @@ is a GitHub issue (`#123`, `owner/repo#123`, or URL).
 - Read and apply the host repo's `AGENTS.md` / `CLAUDE.md`, and the
   `pr-commit-conventions` and `org-defaults` skills if installed. The host
   repo wins on conflict, except where this skill states an override.
+- Companion skills: `pr-shepherd` runs the Shepherd stage (required to
+  shepherd; without it, stop at Handoff), and `change-comms` writes the
+  PR announcement (without it, print one `• <url> - <summary>` line per PR).
 
 ## Work Items and Groups
 
@@ -155,14 +142,13 @@ closed a PR by hand, update `state.json` to match (including recording
 | 3. Build | Builder | Branch + worktree, implement, commit, run checks | **Checkpoint: build** |
 | 4. Validate | Validator | Fresh re-verification + review; builder fixes blockers | **Checkpoint: validate** |
 | 5. Publish | Coordinator | Push, open a **draft** PR with a brief description | Draft PR open |
-| 6. Report | Coordinator | Print the Slack message for the group | Message printed |
-| 7. Shepherd | Coordinator + Builder | Fix CI, resolve conflicts, address review comments | Green + approved |
+| 6. Report | Coordinator | Announce the group's PRs via `change-comms` | Message printed |
+| 7. Shepherd | Coordinator + Builder | One `pr-shepherd` pass per PR | Green + approved |
 | 8. Handoff | Coordinator | Report and stop | Human marks ready / merges |
 | 9. Close out | Coordinator | After merge/close: remove worktree and state | Done |
 
 Per-stage instructions and exit checks:
-[references/stages.md](references/stages.md). CI and review-comment
-handling: [references/shepherding.md](references/shepherding.md).
+[references/stages.md](references/stages.md).
 
 Independent parts of a group may move through Plan, Build, and Validate
 in parallel (one worker per part, separate worktrees). Present their
@@ -176,7 +162,7 @@ Map `derived_stage` from `coordinate.sh status` to an action:
 |---|---|
 | `new` | Start at Clarify |
 | `clarify` … `publish` | Continue that stage; if `awaiting` is a checkpoint, present it and stop unless this is an `approve` |
-| `shepherd` | Run one shepherding pass |
+| `shepherd` | Run one `pr-shepherd` pass per open PR |
 | `ready-to-merge` | Handoff |
 | `held` | PR has `dont-merge`. Report it and stop; no shepherding until a human removes it |
 | `handoff` | Re-report the handoff; nothing to do |
@@ -274,8 +260,8 @@ in the handoff.
 
 ## Reporting
 
-End every invocation with a short status block per item, then the Slack
-message when the group has published PRs:
+End every invocation with a short status block per item, then the PR
+announcement when the group has published PRs:
 
 ```
 coordinate · proj-123 · validate (awaiting validate-approval) · gated · publish

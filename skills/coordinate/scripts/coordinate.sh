@@ -9,11 +9,10 @@
 #   coordinate.sh dir <id>      print the item's state directory (not created)
 #   coordinate.sh status <id>   print observed facts and derived stage as JSON
 #   coordinate.sh list          list items for the current repository
-#   coordinate.sh slack <group>
-#                            print a copy-pastable Slack message listing the group's PRs
+#   coordinate.sh prs <group>   print a group's PRs (all repos) as JSON for change-comms
 #
-# Run from inside the target repository (any worktree). `slack` works from
-# anywhere and reads every repo's items.
+# Run from inside the target repository (any worktree). `prs` works from
+# anywhere.
 set -euo pipefail
 
 die() { echo "coordinate.sh: $*" >&2; exit 1; }
@@ -140,28 +139,27 @@ cmd_list() {
   done | jq -s .
 }
 
-# Lists published PRs for a group across every repo's state, ordered by part.
-cmd_slack() {
+# A group's items across every repo, split into published PRs (ordered by
+# part) and items with no PR yet.
+cmd_prs() {
   local group=$1 root
   root=$(state_root)
   shopt -s nullglob
   local files=("$root"/*/*/state.json)
   ((${#files[@]})) || die "no items found under $root"
-  jq -rs --arg g "$group" '
-    [.[] | select(.group == $g)] as $items
+  jq -s --arg g "$group" '
+    [.[] | select(.group == $g)] | sort_by(.part // 0, .id) as $items
     | if ($items | length) == 0 then error("no items in group \($g)") else . end
-    | [$items[] | select(.pr.url != null)] | sort_by(.part // 0, .id) as $prs
-    | if ($prs | length) == 0 then error("no PRs published yet for group \($g)") else . end
-    | ($items | map(.ticket) | map(select(. != null)) | first) as $t
-    | (if $t then "\($t.key)" + (if $t.title then " - \($t.title)" else "" end)
-       else ($prs[0].title) end) as $head
-    | "PRs for \($head):",
-      ($prs[] | "• \(.pr.url) - \(.summary // .title)")
+    | {group: $g,
+       ticket: ($items | map(.ticket) | map(select(. != null)) | first),
+       prs: [$items[] | select(.pr.url != null)
+             | {url: .pr.url, summary: (.summary // .title), title, draft: (.pr.draft // null)}],
+       pending: [$items[] | select(.pr.url == null) | {id, summary: (.summary // .title)}]}
   ' "${files[@]}"
 }
 
 case "${1:-}" in
-  slack)  [[ -n "${2:-}" ]] || die "usage: coordinate.sh slack <group>"; cmd_slack "$2"; exit ;;
+  prs)    [[ -n "${2:-}" ]] || die "usage: coordinate.sh prs <group>"; cmd_prs "$2"; exit ;;
 esac
 
 git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git repository"
@@ -170,5 +168,5 @@ case "${1:-}" in
   dir)    check_id "${2:-}"; item_dir "$2" ;;
   status) check_id "${2:-}"; cmd_status "$2" ;;
   list)   cmd_list ;;
-  *)      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *)      sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

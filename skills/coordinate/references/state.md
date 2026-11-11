@@ -49,8 +49,8 @@ reboots. Close out deletes it.
 | Field | Values |
 |---|---|
 | `group` | Shared by every item from one request; lowercased ticket key, `issue-<n>`, or a slug |
-| `part` | 1-based order within the group; orders the Slack message |
-| `summary` | A few words for the Slack message, e.g. `add backoff config` |
+| `part` | 1-based order within the group; orders the PR announcement |
+| `summary` | A few words for the PR announcement, e.g. `add backoff config` |
 | `ticket` | `null` or `{"key", "url", "title"}`; `url` may be `null` |
 | `source` | `{"type": "jira", "ref"}`, `{"type": "github-issue", "ref", "url"}`, or `{"type": "user-input"}` |
 | `stage` | `clarify` `plan` `build` `validate` `publish` `shepherd` `handoff` |

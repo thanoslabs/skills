@@ -1,0 +1,3 @@
+interface:
+  display_name: "PR Shepherd"
+  short_description: "Fix CI and address review comments on an open PR"

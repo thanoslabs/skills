@@ -1,0 +1,3 @@
+interface:
+  display_name: "Coordinate"
+  short_description: "Take a ticket from clarified spec to draft PRs"

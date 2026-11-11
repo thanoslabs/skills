@@ -77,6 +77,7 @@ cmd_status() {
         .approved = (.reviewDecision == "APPROVED" or (.reviewDecision == "" and any(.latestReviews[]; .state == "APPROVED")))
         | .held = any(.labels[]; .name == "dont-merge")
         | del(.latestReviews, .labels) else . end' 2>/dev/null || echo null)
+    pr=${pr:-null}  # --jq prints nothing for a null result
     if [[ "$pr" != "null" && "$(jq -r .state <<<"$pr")" == "OPEN" ]]; then
       local n; n=$(jq -r .number <<<"$pr")
       # `gh pr checks` exits non-zero on failing/pending checks; the JSON is still valid.
@@ -92,6 +93,7 @@ cmd_status() {
             reviewThreads(first:100){ nodes { isResolved } } } } }' \
         --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not)] | length' \
         2>/dev/null || echo null)
+      unresolved=${unresolved:-null}
     fi
   fi
 

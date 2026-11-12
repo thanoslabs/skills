@@ -57,6 +57,7 @@ merge"; merging is a human decision in every mode.
 /coordinate comms [<group>]                                         reprint the PR announcement
 /coordinate status [<id|group>]                                     report only
 /coordinate list                                                    all items in this repo
+/coordinate dashboard                                               open the local board of all items
 /coordinate abandon <id>                                            stop and clean up
 ```
 
@@ -135,6 +136,20 @@ run `scripts/coordinate.sh status <id>` for each item in play and act on
 closed a PR by hand, update `state.json` to match (including recording
 `pr`) before continuing. Schema and detection rules:
 [references/state.md](references/state.md).
+
+## Dashboard
+
+`/coordinate dashboard` starts a read-only local board of every item
+across repos: one column per stage, a **Needs you** column for pending
+checkpoints and escalations, and each item's files on click.
+
+```sh
+python3 scripts/dashboard.py --open          # http://127.0.0.1:8765/
+```
+
+Run it in the background and give the user the URL; it reads only the
+state directory and listens only on 127.0.0.1. Keep `updated_at` in
+`state.json` current - the board shows it.
 
 ## Pipeline
 

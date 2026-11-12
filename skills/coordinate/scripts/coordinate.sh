@@ -9,6 +9,8 @@
 #   coordinate.sh dir <id>      print the item's state directory (not created)
 #   coordinate.sh status <id>   print observed facts and derived stage as JSON
 #   coordinate.sh list          list items for the current repository
+#   coordinate.sh checks <id>   run the item's recorded checks in its worktree;
+#                            writes checks.md and checks.log, exits 1 on failure
 #   coordinate.sh prs <group>   print a group's PRs (all repos) as JSON for change-comms
 #
 # Run from inside the target repository (any worktree). `prs` works from
@@ -139,6 +141,49 @@ cmd_list() {
   done | jq -s .
 }
 
+# Runs state.json's `checks` ([{name, command}]) in the worktree. The commands
+# live outside the repo, so a branch can't change what it is judged by.
+cmd_checks() {
+  local id=$1 dir state wt
+  dir=$(item_dir "$id"); state="$dir/state.json"
+  [[ -f "$state" ]] || die "no state for '$id'"
+  wt=$(jq -r '.worktree // ""' "$state")
+  [[ -n "$wt" && -d "$wt" ]] || die "worktree for '$id' not found: '$wt'"
+  local n; n=$(jq '.checks // [] | length' "$state")
+  ((n > 0)) || die "no checks recorded in $state (copy them from plan.md's Commands)"
+
+  local log="$dir/checks.log" out failed=0 i name cmd rc head
+  local summary="" failures=""
+  head=$(git -C "$wt" rev-parse --short HEAD)
+  out=$(mktemp); : > "$log"
+  for ((i = 0; i < n; i++)); do
+    name=$(jq -r ".checks[$i].name" "$state")
+    cmd=$(jq -r ".checks[$i].command" "$state")
+    rc=0; (cd "$wt" && bash -c "$cmd") > "$out" 2>&1 || rc=$?
+    { echo "### $name (exit $rc): $cmd"; cat "$out"; echo; } >> "$log"
+    if ((rc == 0)); then
+      summary+="- $name: pass"$'\n'
+    else
+      failed=$((failed + 1))
+      summary+="- $name: FAIL (exit $rc)"$'\n'
+      failures+=$'\n'"### $name (exit $rc, last 40 lines)"$'\n\n'"\`\`\`"$'\n'"\$ $cmd"$'\n'"$(tail -n 40 "$out")"$'\n'"\`\`\`"$'\n'
+    fi
+  done
+  rm -f "$out"
+  [[ -z "$(git -C "$wt" status --porcelain)" ]] \
+    || summary+="- worktree has uncommitted changes after the checks"$'\n'
+
+  {
+    if ((failed)); then echo "CHECKS: FAIL ($failed of $n)"; else echo "CHECKS: PASS"; fi
+    echo; echo "# Checks: $id @ $head"; echo
+    echo "## Summary"; echo; printf '%s' "$summary"
+    [[ -z "$failures" ]] || { echo; echo "## Failures"; printf '%s' "$failures"; }
+    echo; echo "Full output: checks.log"
+  } > "$dir/checks.md"
+  head -1 "$dir/checks.md"
+  ((failed == 0))
+}
+
 # A group's items across every repo, split into published PRs (ordered by
 # part) and items with no PR yet.
 cmd_prs() {
@@ -168,5 +213,6 @@ case "${1:-}" in
   dir)    check_id "${2:-}"; item_dir "$2" ;;
   status) check_id "${2:-}"; cmd_status "$2" ;;
   list)   cmd_list ;;
-  *)      sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  checks) check_id "${2:-}"; cmd_checks "$2" ;;
+  *)      sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

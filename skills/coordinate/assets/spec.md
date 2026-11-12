@@ -4,6 +4,10 @@ Source: <PROJ-123 | owner/repo#123 | "user input">
 Group: <group> · Part <n> of <total>: <summary, a few words>
 Depends on: <other part id, or "none">
 
+## Summary
+
+- <3-5 short bullets: what this part delivers and the key decisions>
+
 ## Goal
 
 <One or two sentences: the outcome, not the implementation.>

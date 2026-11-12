@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>coordinate</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #677085; --line: #e2e5eb;
+    --ok: #1f8a4c; --ok-bg: #e5f5ec; --bad: #c0352b; --bad-bg: #fbe9e7;
+    --wait: #a45d00; --wait-bg: #fff3df; --info-bg: #eef1f6; --accent: #3b5bdb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1b1f27; --text: #e6e9ef; --muted: #98a1b3; --line: #2b313c;
+      --ok: #5fd08f; --ok-bg: #173325; --bad: #ff8b80; --bad-bg: #3a1c1a;
+      --wait: #ffb54d; --wait-bg: #3a2c14; --info-bg: #262c36; --accent: #8ca2ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 16px 24px 8px; }
+  header h1 { font-size: 18px; margin: 0; }
+  header .meta { color: var(--muted); font-size: 12px; }
+  #problems { margin: 0 24px; color: var(--bad); font-size: 12px; }
+  .board { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; padding: 12px 24px 32px; }
+  .column h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+               margin: 0 0 8px; display: flex; justify-content: space-between; }
+  .column.human h2 { color: var(--wait); }
+  .empty { color: var(--muted); font-size: 12px; padding: 8px 2px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--group, var(--line));
+          border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; cursor: pointer; }
+  .card:hover { border-color: var(--accent); border-left-color: var(--group, var(--accent)); }
+  .card .title { font-weight: 600; margin-bottom: 2px; overflow-wrap: anywhere; }
+  .card .sub { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .need { margin: 8px 0 4px; padding: 6px 8px; border-radius: 6px; background: var(--wait-bg);
+          color: var(--wait); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+  .need code { font-weight: 400; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .chip { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--info-bg); color: var(--muted); }
+  .chip.ok { background: var(--ok-bg); color: var(--ok); }
+  .chip.bad { background: var(--bad-bg); color: var(--bad); }
+  .card ul { margin: 8px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); }
+  .card ul li { overflow-wrap: anywhere; }
+  .age { color: var(--muted); font-size: 11px; margin-top: 6px; }
+  #detail { position: fixed; inset: 0 0 0 auto; width: min(760px, 100vw); background: var(--panel);
+            border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0,0,0,.15);
+            display: none; flex-direction: column; }
+  #detail.open { display: flex; }
+  #detail .top { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  #detail .top h3 { margin: 0 0 4px; font-size: 16px; overflow-wrap: anywhere; }
+  #detail .close { float: right; border: 0; background: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+  #detail dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 8px 0 0; font-size: 12px; }
+  #detail dt { color: var(--muted); }
+  #detail dd { margin: 0; overflow-wrap: anywhere; }
+  .tabs { display: flex; gap: 4px; padding: 8px 20px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tabs button { border: 1px solid var(--line); border-bottom: 0; background: var(--bg); color: var(--text);
+                 padding: 4px 10px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 12px; }
+  .tabs button.active { background: var(--panel); font-weight: 600; }
+  #file { flex: 1; overflow: auto; margin: 0; padding: 16px 20px; white-space: pre-wrap;
+          font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  @media (max-width: 1100px) { .board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 640px) { .board { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>coordinate</h1>
+  <span class="meta" id="meta">loading…</span>
+</header>
+<div id="problems"></div>
+<main class="board" id="board"></main>
+<aside id="detail" aria-live="polite">
+  <div class="top">
+    <button class="close" id="close" title="Close">×</button>
+    <h3 id="d-title"></h3>
+    <div class="sub" id="d-sub"></div>
+    <dl id="d-meta"></dl>
+  </div>
+  <nav class="tabs" id="d-tabs"></nav>
+  <pre id="file"></pre>
+</aside>
+<script>
+// All content comes from tickets, PRs, and worker output: treat it as
+// untrusted. Build the DOM with textContent only; never innerHTML.
+const POLL_MS = 4000
+const COLUMNS = [
+  { key: 'clarify', label: 'Clarify', stages: ['clarify'] },
+  { key: 'plan', label: 'Plan', stages: ['plan'] },
+  { key: 'build', label: 'Build', stages: ['build'] },
+  { key: 'validate', label: 'Validate', stages: ['validate'] },
+  { key: 'pr', label: 'PR open', stages: ['publish', 'shepherd', 'handoff'] },
+  { key: 'human', label: 'Needs you', stages: [] },
+]
+const NEEDS = {
+  'clarify-approval': 'Approve the scope',
+  'plan-approval': 'Approve the plan',
+  'build-approval': 'Approve the build',
+  'validate-approval': 'Approve to publish',
+  'human-push': 'Push and open the PR',
+  'human-merge': 'Ready to merge',
+}
+const APPROVABLE = new Set(['clarify-approval', 'plan-approval', 'build-approval', 'validate-approval'])
+const FILE_ORDER = ['spec.md', 'plan.md', 'build.md', 'checks.md', 'review.md', 'pr-body.md']
+
+let items = []
+let selected = null  // { repo, id, file }
+let opened = false  // a #<repo>/<id> link has been honored
+let loadedKey = null  // repo/id/file@mtime currently shown, so polling doesn't reset scroll
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag)
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') node.className = v
+    else if (k === 'style') node.style.cssText = v
+    else node.setAttribute(k, v)
+  }
+  for (const c of children.flat()) {
+    if (c == null || c === false) continue
+    node.append(c instanceof Node ? c : document.createTextNode(String(c)))
+  }
+  return node
+}
+
+function safeLink(url, text) {
+  return /^https:\/\//.test(url || '') ? el('a', { href: url, target: '_blank', rel: 'noopener' }, text) : text
+}
+
+function ago(iso) {
+  if (!iso) return ''
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 90) return 'just now'
+  if (s < 5400) return `${Math.round(s / 60)} min ago`
+  if (s < 129600) return `${Math.round(s / 3600)} h ago`
+  return `${Math.round(s / 86400)} d ago`
+}
+
+function groupColor(group) {
+  let h = 0
+  for (const ch of group || '') h = (h * 31 + ch.charCodeAt(0)) % 360
+  return `hsl(${h} 60% 55%)`
+}
+
+function needOf(item) {
+  if (item.escalation) return `Escalated at ${item.escalation.stage || item.stage}: ${item.escalation.reason || 'see state.json'}`
+  return NEEDS[item.awaiting] || null
+}
+
+function columnOf(item) {
+  if (needOf(item)) return 'human'
+  const col = COLUMNS.find((c) => c.stages.includes(item.stage))
+  return col ? col.key : null
+}
+
+function tone(status) {
+  if (!status) return ''
+  if (/PASS|READY/.test(status)) return 'ok'
+  if (/FAIL|BLOCK/.test(status)) return 'bad'
+  return ''
+}
+
+function chips(item) {
+  const out = []
+  const f = item.files || {}
+  for (const [name, label] of [['plan.md', 'plan'], ['build.md', 'build'], ['checks.md', 'checks'], ['review.md', 'review']]) {
+    const st = f[name] && f[name].status
+    if (st) out.push(el('span', { class: `chip ${tone(st)}`, title: st }, `${label} ${st.replace(/^\w+:\s*/, '').split(/[\s(:]/)[0].toLowerCase()}`))
+  }
+  if (item.pr && item.pr.url) out.push(el('span', { class: 'chip' }, item.pr.draft ? `PR #${item.pr.number || '?'} draft` : `PR #${item.pr.number || '?'}`))
+  if (item.mode === 'auto') out.push(el('span', { class: 'chip' }, 'auto'))
+  if (item.publish === false) out.push(el('span', { class: 'chip' }, 'local-only'))
+  return out
+}
+
+function latestSummary(item) {
+  const files = Object.entries(item.files || {}).filter(([, d]) => d.summary && d.summary.length)
+  // Newest first; on a tie, the later pipeline file wins (review over checks).
+  files.sort((a, b) => (b[1].mtime || '').localeCompare(a[1].mtime || '') ||
+    FILE_ORDER.indexOf(b[0]) - FILE_ORDER.indexOf(a[0]))
+  return files.length ? files[0][1].summary : []
+}
+
+function card(item) {
+  const need = needOf(item)
+  const ticket = item.ticket && item.ticket.key
+  const sub = [ticket || item.group, item.part ? `part ${item.part}` : null, item.repo].filter(Boolean).join(' · ')
+  const node = el('article', { class: 'card', style: `--group: ${groupColor(item.group || item.id)}`, tabindex: '0' },
+    el('div', { class: 'title' }, item.title || item.id),
+    el('div', { class: 'sub' }, sub),
+    need && el('div', { class: 'need' }, need,
+      APPROVABLE.has(item.awaiting) && !item.escalation ? [el('br'), el('code', {}, `/coordinate approve ${item.id}`)] : null),
+    el('div', { class: 'chips' }, chips(item)),
+    (() => { const s = latestSummary(item); return s.length ? el('ul', {}, s.slice(0, 3).map((b) => el('li', {}, b))) : null })(),
+    el('div', { class: 'age' }, `${item.stage || 'new'} · ${ago(item.updated_at)}`),
+  )
+  const open = () => openDetail(item.repo, item.id)
+  node.addEventListener('click', open)
+  node.addEventListener('keydown', (e) => { if (e.key === 'Enter') open() })
+  return node
+}
+
+function render(data) {
+  items = data.items || []
+  const board = document.getElementById('board')
+  const byCol = new Map(COLUMNS.map((c) => [c.key, []]))
+  const problems = [...(data.problems || [])]
+  for (const item of items) {
+    const col = columnOf(item)
+    if (col) byCol.get(col).push(item)
+    else problems.push(`${item.repo}/${item.id} has unknown stage "${item.stage}"`)
+  }
+  board.replaceChildren(...COLUMNS.map((c) => {
+    const list = byCol.get(c.key).sort((a, b) =>
+      (a.group || a.id).localeCompare(b.group || b.id) || (a.part || 0) - (b.part || 0) || a.id.localeCompare(b.id))
+    return el('section', { class: `column ${c.key === 'human' ? 'human' : ''}` },
+      el('h2', {}, el('span', {}, c.label), el('span', {}, String(list.length))),
+      list.length ? list.map(card) : el('div', { class: 'empty' }, '-'))
+  }))
+  document.getElementById('problems').replaceChildren(...problems.map((p) => el('div', {}, p)))
+  document.getElementById('meta').textContent =
+    `${items.length} item${items.length === 1 ? '' : 's'} · ${data.state_root} · updated ${new Date().toLocaleTimeString()}`
+  if (selected) refreshDetail()
+  else if (!opened && location.hash.length > 1) {
+    opened = true
+    const [repo, id] = decodeURIComponent(location.hash.slice(1)).split('/')
+    if (items.some((i) => i.repo === repo && i.id === id)) openDetail(repo, id)
+  }
+}
+
+async function poll() {
+  try {
+    const res = await fetch('/api/items', { cache: 'no-store' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    render(await res.json())
+  } catch (e) {
+    document.getElementById('meta').textContent = `can't reach the dashboard server (${e.message}); is dashboard.py running?`
+  }
+}
+
+function openDetail(repo, id) {
+  const item = items.find((i) => i.repo === repo && i.id === id)
+  const files = FILE_ORDER.filter((f) => item && item.files && item.files[f])
+  selected = { repo, id, file: files[files.length - 1] || null }
+  document.getElementById('detail').classList.add('open')
+  history.replaceState(null, '', `#${encodeURIComponent(repo)}/${encodeURIComponent(id)}`)
+  refreshDetail()
+}
+
+function refreshDetail() {
+  const item = items.find((i) => i.repo === selected.repo && i.id === selected.id)
+  if (!item) { closeDetail(); return }
+  document.getElementById('d-title').textContent = item.title || item.id
+  document.getElementById('d-sub').textContent = `${item.id} · ${item.repo}`
+  const rows = [
+    ['stage', `${item.stage || 'new'}${item.awaiting ? ` (awaiting ${item.awaiting})` : ''}`],
+    ['ticket', item.ticket ? safeLink(item.ticket.url, `${item.ticket.key}${item.ticket.title ? ` - ${item.ticket.title}` : ''}`) : null],
+    ['branch', item.branch ? `${item.branch} → ${item.base || '?'}` : null],
+    ['PR', item.pr && item.pr.url ? safeLink(item.pr.url, item.pr.url) : null],
+    ['escalation', item.escalation ? `${item.escalation.stage || ''}: ${item.escalation.reason || ''}` : null],
+    ['attempts', item.attempts ? Object.entries(item.attempts).map(([k, v]) => `${k} ${v}`).join(', ') : null],
+    ['mode', `${item.mode || 'gated'}${item.publish === false ? ', local-only' : ''}`],
+  ].filter(([, v]) => v)
+  document.getElementById('d-meta').replaceChildren(...rows.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)]))
+  const files = FILE_ORDER.filter((f) => item.files && item.files[f])
+  if (!files.includes(selected.file)) selected.file = files[files.length - 1] || null
+  document.getElementById('d-tabs').replaceChildren(...files.map((f) => {
+    const b = el('button', { class: f === selected.file ? 'active' : '' }, f)
+    b.addEventListener('click', () => { selected.file = f; refreshDetail() })
+    return b
+  }))
+  const mtime = selected.file ? item.files[selected.file].mtime : ''
+  const key = `${item.repo}/${item.id}/${selected.file}@${mtime}`
+  if (key !== loadedKey) { loadedKey = key; loadFile() }
+}
+
+async function loadFile() {
+  const pre = document.getElementById('file')
+  if (!selected.file) { pre.textContent = 'No files yet.'; return }
+  const q = new URLSearchParams({ repo: selected.repo, id: selected.id, name: selected.file })
+  try {
+    const res = await fetch(`/api/file?${q}`, { cache: 'no-store' })
+    pre.textContent = res.ok ? await res.text() : `Couldn't load ${selected.file} (HTTP ${res.status}).`
+  } catch (e) {
+    pre.textContent = `Couldn't load ${selected.file} (${e.message}).`
+  }
+}
+
+function closeDetail() {
+  selected = null
+  loadedKey = null
+  document.getElementById('detail').classList.remove('open')
+  history.replaceState(null, '', location.pathname)
+}
+
+document.getElementById('close').addEventListener('click', closeDetail)
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail() })
+poll()
+setInterval(poll, POLL_MS)
+</script>
+</body>
+</html>

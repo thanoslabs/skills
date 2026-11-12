@@ -26,24 +26,26 @@ merge"; merging is a human decision in every mode.
 
 ## Roles and Models
 
-| Role | Model | Does |
-|---|---|---|
-| Coordinator | `claude-fable-5-2` | Clarify, dispatch, verify worker reports, run checkpoints, publish, report |
-| Planner | `claude-opus-5-5` | Explore the repo, write `plan.md` |
-| Builder | `claude-opus-5-5` | Implement the plan in the worktree, commit, run checks |
-| Validator | `claude-opus-5-5` | Fresh-context re-verification and review against the spec |
+| Role | Model | Defined in | Does |
+|---|---|---|---|
+| Coordinator | `claude-fable-5-2` | this file's `model` frontmatter | Clarify, dispatch, verify worker results, run checkpoints, publish, report |
+| Planner | `claude-opus-5-5` | [assets/roles/planner.md](assets/roles/planner.md) | Explore the repo, write `plan.md` |
+| Builder | `claude-opus-5-5` | [assets/roles/builder.md](assets/roles/builder.md) | Implement the plan in the worktree, commit, write `build.md` |
+| Validator | `claude-opus-5-5` | [assets/roles/validator.md](assets/roles/validator.md) | Fresh-context review against the spec, write `review.md` |
 
-- This table and the `model` frontmatter field are the only places models
-  are named. Change both together to swap models.
-- Spawn workers with your agent's subagent tool, setting the worker model
-  explicitly. In Claude Code, use the Agent tool with `model: "opus"`
-  (resolves to Opus 5.5). If the harness cannot select a model, use the
-  session model and say so in the report.
-- If the harness has no subagent tool, run each worker role yourself, one
-  at a time, following its brief - and re-read the diff from scratch for
-  Validate, as if you had not written it.
-- Worker briefs, the report format they must return, and how to check
-  them: [references/agents.md](references/agents.md).
+- Each role file is the single definition of that worker - model,
+  capabilities, and instructions - in a format no tool owns. To change a
+  worker's model, edit its role file (and this table).
+- Workers write their results to files and reply with one line; you read
+  the first line and the file's `## Summary`, and keep your context for
+  the whole pipeline.
+- How to spawn workers in any harness, the prompt header, and how to
+  check their results: [references/workers.md](references/workers.md).
+  Optionally install the roles as native Claude Code or Codex agents
+  with `scripts/install_agents.py`, so the tool enforces model and tools.
+- Pass/fail is decided by `scripts/coordinate.sh checks`, not by a
+  worker: it runs the plan's commands in the worktree and writes
+  `checks.md`.
 
 ## Invocation
 
@@ -55,6 +57,7 @@ merge"; merging is a human decision in every mode.
 /coordinate comms [<group>]                                         reprint the PR announcement
 /coordinate status [<id|group>]                                     report only
 /coordinate list                                                    all items in this repo
+/coordinate dashboard                                               open the local board of all items
 /coordinate abandon <id>                                            stop and clean up
 ```
 
@@ -92,7 +95,8 @@ there is no ticket.
 ## Prerequisites
 
 - `git` and `jq`. `gh` authenticated for anything touching GitHub. Without
-  `gh`, the work runs as `--local-only`.
+  `gh`, the work runs as `--local-only`. `python3` (standard library only)
+  for the optional agent installer and dashboard.
 - Jira access for ticket work, any of: a Jira/Atlassian MCP server, the
   `acli` CLI, or the `jira` CLI. Without one, ask the user to paste the
   ticket's summary, description, and acceptance criteria.
@@ -121,7 +125,7 @@ Per-item state lives **outside the repository** and is never committed:
 
 ```
 $COORDINATE_STATE_DIR/<owner>-<repo>/<id>/
-  state.json   spec.md   plan.md   review.md   pr-body.md   worktree/
+  state.json  spec.md  plan.md  build.md  checks.md  review.md  pr-body.md  worktree/
 ```
 
 Get the path with `scripts/coordinate.sh dir <id>`.
@@ -133,14 +137,28 @@ closed a PR by hand, update `state.json` to match (including recording
 `pr`) before continuing. Schema and detection rules:
 [references/state.md](references/state.md).
 
+## Dashboard
+
+`/coordinate dashboard` starts a read-only local board of every item
+across repos: one column per stage, a **Needs you** column for pending
+checkpoints and escalations, and each item's files on click.
+
+```sh
+python3 scripts/dashboard.py --open          # http://127.0.0.1:8765/
+```
+
+Run it in the background and give the user the URL; it reads only the
+state directory and listens only on 127.0.0.1. Keep `updated_at` in
+`state.json` current - the board shows it.
+
 ## Pipeline
 
 | Stage | Who | Does | Ends with |
 |---|---|---|---|
 | 1. Clarify | Coordinator | Resolve ticket, ask questions, split into parts, write `spec.md` | **Checkpoint: clarify** |
-| 2. Plan | Planner | Explore the repo, write `plan.md` | **Checkpoint: plan** |
-| 3. Build | Builder | Branch + worktree, implement, commit, run checks | **Checkpoint: build** |
-| 4. Validate | Validator | Fresh re-verification + review; builder fixes blockers | **Checkpoint: validate** |
+| 2. Plan | Planner | Explore the repo, write `plan.md`; record check commands | **Checkpoint: plan** |
+| 3. Build | Builder + `checks` | Branch + worktree, implement, commit; `coordinate.sh checks` must pass | **Checkpoint: build** |
+| 4. Validate | Validator | Fresh review against the spec; builder fixes blockers | **Checkpoint: validate** |
 | 5. Publish | Coordinator | Push, open a **draft** PR with a brief description | Draft PR open |
 | 6. Report | Coordinator | Announce the group's PRs via `change-comms` | Message printed |
 | 7. Shepherd | Coordinator + Builder | One `pr-shepherd` pass per PR | Green + approved |

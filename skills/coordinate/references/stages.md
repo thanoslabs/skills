@@ -3,7 +3,8 @@
 Each stage lists who does it, what to do, and the exit check that must
 hold before moving on. `$DIR` is the item's state directory
 (`scripts/coordinate.sh dir <id>`); `$WT` is `$DIR/worktree`. Worker
-briefs are in [agents.md](agents.md).
+roles, the prompt header, and how to check results are in
+[workers.md](workers.md).
 
 Write `state.json` after every stage transition, checkpoint, and
 escalation - never only at the end of a turn.
@@ -100,13 +101,20 @@ scope before any worker runs.
    parent part's branch for a stacked part. Record `base`.
 2. Work out the branch name per "Branch names" in `SKILL.md` and record
    it as `branch` (don't create it yet).
-3. Spawn a **planner** with the planner brief. It writes `$DIR/plan.md`
-   from [../assets/plan.md](../assets/plan.md).
-4. Check the plan (see [agents.md](agents.md#checking-worker-reports)):
+3. Spawn a **planner** (`coordinate-planner`). It writes `$DIR/plan.md`
+   from [../assets/plan.md](../assets/plan.md) and replies with its
+   first line.
+4. Check the plan (see [workers.md](workers.md#checking-worker-results)):
    every acceptance criterion is covered by a task with a verification
    step, and the test/lint/type-check commands are concrete.
+5. Record the plan's commands in `state.json` as `checks`, skipping any
+   marked "none configured":
+   `[{"name": "tests", "command": "<cmd>"}, ...]`. These are what
+   `coordinate.sh checks` runs; they live outside the repo, so the
+   branch can't change them.
 
-**Checkpoint: plan.** Present the spec and plan together.
+**Checkpoint: plan.** Present the spec and plan together, including the
+exact check commands - they will be run as shell commands.
 
 After approval, if publishing and the source is a GitHub issue: assign
 the current user (`gh issue edit <n> --add-assignee @me`), add the
@@ -121,24 +129,24 @@ You create the branch and worktree, so names are always right:
 git worktree add -b "$BRANCH" "$WT" "origin/$BASE"   # stacked part: use the parent branch
 ```
 
-Spawn a **builder** with the builder brief. It works task by task through
-`plan.md` in `$WT` only, writes tests first where the repo has tests,
-commits per `pr-commit-conventions` (with `Refs: PROJ-123` in the body
-when there is a ticket, `Refs #123` for an issue), runs the plan's checks,
-and returns the build report.
+Spawn a **builder** (`coordinate-builder`, named `builder-<id>`). It
+works task by task through `plan.md` in `$WT` only, commits per
+`pr-commit-conventions` with the header's ticket reference, runs the
+checks, writes `$DIR/build.md`, and replies with its first line.
 
-Then check it yourself:
+Then check it yourself, and run the checks - the builder's own claims
+don't count:
 
 ```sh
 git -C "$WT" status --porcelain                 # must be empty
-git -C "$WT" log --oneline "origin/$BASE"..HEAD # commits match the report
-git -C "$WT" diff --stat "origin/$BASE"...HEAD
+git -C "$WT" log --oneline "origin/$BASE"..HEAD # commits match build.md
+scripts/coordinate.sh checks <id>               # writes checks.md; exit 1 on failure
 ```
 
-- Failed checks: send the failures back to the builder (continue the
-  same agent if the harness supports it, otherwise spawn a new builder
-  with the previous report attached). Increment `attempts.verify` per
-  failed run; at 3, escalate.
+- `STATUS: BLOCKED`: read `build.md`'s Blocked section and escalate, or
+  answer it if the spec already settles it.
+- `CHECKS: FAIL`: send the builder `Address the failures in checks.md.`
+  Increment `attempts.verify` per failed run; at 3, escalate.
 - Plan deviations: the builder records them in `plan.md`. In gated mode,
   present a revised plan before letting the builder continue.
 
@@ -150,13 +158,17 @@ results, and any plan deviations.
 
 ## 4. Validate (validator)
 
-1. Spawn a **validator** with the validator brief - a fresh agent that
-   never saw the build. It re-runs every check from the plan, verifies each
-   acceptance criterion with evidence, reviews the diff, and writes
-   `$DIR/review.md` with findings grouped as **Blockers**, **Important**,
-   and **Nits**.
-2. If there are blockers, send them to the builder to fix, then spawn a
-   new validator once more. Still blocked after that: escalate.
+Validate starts only once `checks.md` says `CHECKS: PASS` for the
+current HEAD; the validator judges the code, not whether it compiles.
+
+1. Spawn a **validator** (`coordinate-validator`) - a fresh agent that
+   never saw the build. It reads `checks.md`, verifies each acceptance
+   criterion with evidence, reviews the diff, writes `$DIR/review.md`
+   with findings grouped as **Blockers**, **Important**, and **Nits**,
+   and replies with its first line.
+2. On `VERDICT: BLOCKERS`, send the builder `Address the open blockers
+   in review.md.`, re-run `coordinate.sh checks`, then spawn a new
+   validator once more. Still blocked after that: escalate.
 3. Fix important findings where cheap (via the builder); leave the rest
    marked open for the human. Mark each finding fixed, accepted, or open.
 4. Write the PR title (Conventional Commits, same type as the branch
@@ -185,7 +197,7 @@ Skip with `--local-only`; go to Handoff.
 ```sh
 git -C "$WT" fetch origin
 git -C "$WT" rebase "origin/$BASE"          # unpublished branch: rebase is fine
-# re-run the plan's checks if the rebase brought in changes
+scripts/coordinate.sh checks <id>           # again if the rebase brought in changes
 git -C "$WT" push -u origin "$BRANCH"
 gh pr create --draft --head "$BRANCH" --base "$BASE" --title "<title>" \
   --body-file "$DIR/pr-body.md" --label "<release label>"
@@ -220,7 +232,7 @@ For each open PR in play, run one pass of the `pr-shepherd` skill with:
 - the PR number, and the item's worktree `$WT` as the checkout
 - the check commands from `plan.md`
 - a builder subagent as the implementer (see
-  [agents.md](agents.md#builder-brief)): you triage, the builder makes
+  [workers.md](workers.md)): you triage, the builder makes
   code changes, you check its result
 
 Then, from the pass report:

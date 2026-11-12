@@ -10,11 +10,18 @@ ${COORDINATE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/coordinate}/<owner
 every repository, so nothing in it can be committed, and it survives
 reboots. Close out deletes it.
 
+Every Markdown file except `pr-body.md` opens with a status line where
+it has one (`STATUS:`, `CHECKS:`, `VERDICT:`) and a `## Summary` of 3-5
+bullets. The coordinator and the dashboard read only those; the detail
+below is for the next worker and for the human.
+
 | File | Written in | Purpose |
 |---|---|---|
 | `state.json` | every stage | Pipeline position and things git/GitHub can't show |
 | `spec.md` | Clarify | What "done" means, decisions, assumptions |
 | `plan.md` | Plan | How to get there |
+| `build.md` | Build | Builder's record: commits, criteria evidence, a log per round |
+| `checks.md`, `checks.log` | Build, Validate, Publish | Latest `coordinate.sh checks` result for the worktree's HEAD; full output in the log |
 | `review.md` | Validate | Validator findings, each marked fixed, accepted, or open |
 | `pr-body.md` | Validate | Brief PR description, used by Publish or the human |
 | `worktree/` | Build | The item's git worktree |
@@ -39,6 +46,7 @@ reboots. Close out deletes it.
   "branch": "jonathann/PROJ-123-backoff-config",
   "worktree": "/Users/me/.local/state/coordinate/acme-api/proj-123-backoff-config/worktree",
   "pr": null,
+  "checks": [{ "name": "tests", "command": "npm test" }, { "name": "lint", "command": "npm run lint" }],
   "approvals": { "clarify": "2026-10-22T13:51:00Z", "plan": "2026-10-22T14:03:00Z", "build": null, "validate": null },
   "attempts": { "verify": 1, "ci": 0, "review_rounds": 0 },
   "escalation": null,
@@ -58,6 +66,7 @@ reboots. Close out deletes it.
 | `mode` | `gated` or `auto` |
 | `publish` | `false` when `--local-only` |
 | `pr` | `null` or `{"number", "url", "draft"}` |
+| `checks` | Check commands from the plan, run by `coordinate.sh checks`; set at Plan |
 | `approvals.*` | ISO timestamp, `"auto"`, or `null` |
 | `escalation` | `null` or `{"stage", "reason", "at"}` |
 

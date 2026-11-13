@@ -15,17 +15,27 @@ jobs:
 
       - name: Check for sensitive files
         run: |
-          # Fail if .env, secrets, or private keys are committed
-          if git grep -l "\.env\|PRIVATE_KEY\|AWS_SECRET" --cached 2>/dev/null; then
-            echo "Error: sensitive files committed"
+          # Fail if env files or key files are tracked (.env.example is allowed)
+          files=$(git ls-files | grep -E '(^|/)\.env(\.[^/]*)?$|\.(pem|p12|pfx)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)$' | grep -vE '\.env\.(example|sample|template)$' || true)
+          # Fail if a tracked file contains a private key block or an AWS access key ID
+          content=$(git grep -lE --cached -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' -e 'AKIA[0-9A-Z]{16}' || true)
+          if [ -n "$files$content" ]; then
+            echo "Error: sensitive files or credentials committed:"
+            printf '%s\n' $files $content
             exit 1
           fi
 
       - name: Validate YAML files
         run: |
-          for f in $(find . -name "*.yaml" -o -name "*.yml" 2>/dev/null | grep -v node_modules); do
-            python3 -c "import yaml, sys; yaml.safe_load(open('$f'))" 2>/dev/null || echo "Invalid YAML: $f"
+          python3 -c "import yaml"
+          failed=0
+          for f in $(git ls-files '*.yaml' '*.yml'); do
+            if ! python3 -c "import sys, yaml; list(yaml.safe_load_all(open(sys.argv[1])))" "$f"; then
+              echo "Invalid YAML: $f"
+              failed=1
+            fi
           done
+          exit $failed
 
       # Add project-specific validation steps below, e.g.:
       # - name: Run tests

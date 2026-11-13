@@ -1,0 +1,3 @@
+interface:
+  display_name: "Weekly Summary"
+  short_description: "Pick this week's findings, get a one-line-each update"

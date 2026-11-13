@@ -15,6 +15,7 @@ structure and authoring conventions; start new skills from
 | [coordinate](skills/coordinate/SKILL.md) | Coordinator agent that clarifies work, ties it to a Jira ticket, dispatches plan/build/validate subagents, and opens draft PRs with a PR announcement |
 | [pr-shepherd](skills/pr-shepherd/SKILL.md) | One pass over an open PR: resolve conflicts, fix CI, address review comments |
 | [change-comms](skills/change-comms/SKILL.md) | Copy-pastable chat announcements of PRs and shipped work |
+| [weekly-summary](skills/weekly-summary/SKILL.md) | Two-pass weekly work summary: select findings from GitHub, tracker, and chat activity, then get one line each in your saved format |
 
 ## Using a Skill
 
